@@ -1,0 +1,2310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="theme-color" content="#059669" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Property Valuation & Site Visit — Step 1</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <!-- App Access Lock Screen -->
+  <div id="lockScreen" class="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center">
+      <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-xl font-bold">
+        🔒
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Authorized Access Only</h2>
+        <p id="lockSubtitle" class="text-xs text-slate-600 mt-1">Enter your registered Mobile No. and Secret PIN to continue.</p>
+      </div>
+      <form id="unlockForm" class="space-y-3">
+        <input
+          id="mobileAuthInput"
+          type="tel"
+          inputmode="numeric"
+          required
+          placeholder="10-digit Mobile No."
+          class="w-full text-center tracking-wider rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+        <input
+          id="pinInput"
+          type="password"
+          inputmode="numeric"
+          required
+          placeholder="Secret PIN"
+          class="w-full text-center tracking-widest rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+        <p id="pinError" class="hidden text-xs font-medium text-rose-600">Access denied or blocked by Admin.</p>
+        <button id="unlockBtn" type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
+          Verify &amp; Unlock
+        </button>
+      </form>
+    </div>
+  </div>
+  <div class="max-w-2xl mx-auto px-4 py-6 sm:py-8">
+    <!-- Header -->
+    <header class="mb-6">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">
+          <span>Step 3 of 3</span>
+          <span>•</span>
+          <span>Excel Export &amp; WhatsApp Share</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button id="newEntryBtn" type="button" class="text-xs font-semibold text-emerald-700 hover:bg-emerald-50 bg-white border border-emerald-300 px-2.5 py-1 rounded-lg cursor-pointer">
+            + New Entry
+          </button>
+          <button id="lockAppBtn" type="button" class="text-xs font-semibold text-slate-600 hover:text-rose-600 bg-white border border-slate-200 px-2.5 py-1 rounded-lg cursor-pointer">
+            Lock App
+          </button>
+        </div>
+      </div>
+      <h1 class="text-2xl font-bold text-slate-900">Property Valuation Report</h1>
+      <p class="text-sm text-slate-600 mt-1">All fields are mandatory (enter NA / None where not applicable) before saving.</p>
+      <div id="permBanner" class="mt-3 bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+        <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span class="font-semibold text-slate-700 mr-1">Permissions:</span>
+          <span id="permGpsBadge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">GPS: Pending</span>
+          <span id="permCamBadge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">Camera: Pending</span>
+          <span id="permNotifBadge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">Notification: Pending</span>
+          <span id="permStorageBadge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">Storage: Pending</span>
+        </div>
+        <button id="grantPermsBtn" type="button" class="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+          Allow All Permissions
+        </button>
+      </div>
+    </header>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium bg-emerald-600 text-white shadow-lg"></div>
+
+    <!-- Excel & WhatsApp Modal -->
+    <div id="shareModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl space-y-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Excel Report Ready</h3>
+            <p id="shareModalSubtitle" class="text-xs text-slate-600 mt-0.5">Your Excel file (.xlsx) has been downloaded.</p>
+          </div>
+          <button id="closeShareModal" type="button" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded-lg cursor-pointer">Close</button>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 leading-relaxed space-y-1">
+          <p><strong>1.</strong> Pehle <strong>Download Excel (.xlsx)</strong> dabakar file phone mein save karein.</p>
+          <p><strong>2.</strong> Phir <strong>Open WhatsApp</strong> dabakar <strong>📎 Document</strong> se saved <strong>.xlsx</strong> file attach karke bhejein.</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2.5">
+          <a id="modalDownloadLink" href="#" download="Visit_Report.xlsx" class="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-xl text-xs transition-colors">
+            Download Excel (.xlsx)
+          </a>
+          <a id="modalWhatsappBtn" href="whatsapp://send?phone=917999551942" target="_blank" rel="noopener noreferrer" class="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-xs transition-colors">
+            Send on WhatsApp (7999551942)
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <form id="entryForm" autocomplete="off" class="space-y-4 mb-8">
+
+      <!-- Engineer Section (Top) -->
+      <section class="bg-white rounded-2xl shadow-sm border border-emerald-200 p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-bold text-slate-900">Site Visit Engineer Details</span>
+          <span class="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Required</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="engineerName" class="block text-xs font-semibold text-slate-700 mb-1">Name of Site Visit Engineer <span class="text-rose-500">*</span></label>
+            <input id="engineerName" type="text" required placeholder="Enter engineer full name" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" / autocomplete="off">
+          </div>
+          <div>
+            <label for="engineerMobile" class="block text-xs font-semibold text-slate-700 mb-1">Mobile No. of Site Visit Engineer <span class="text-rose-500">*</span></label>
+            <input id="engineerMobile" type="tel" required pattern="[0-9]{10}" maxlength="10" placeholder="10-digit mobile number" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" / autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 1: Basic & Visit Details -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <button type="button" data-toggle-section="sec1" class="w-full flex items-center justify-between px-5 py-4 bg-slate-50/70 border-b border-slate-100 text-left cursor-pointer">
+          <span class="text-sm font-bold text-slate-900">1. Basic & Visit Details</span>
+          <span class="text-xs font-medium text-emerald-700" data-arrow="sec1">Hide</span>
+        </button>
+        <div id="sec1" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="visitDate" class="block text-xs font-semibold text-slate-700 mb-1">Visit Date <span class="text-rose-500">*</span></label>
+            <input id="visitDate" type="date" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" / autocomplete="off">
+          </div>
+          <div>
+            <label for="bankName" class="block text-xs font-semibold text-slate-700 mb-1">Bank Name <span class="text-rose-500">*</span></label>
+            <input id="bankName" type="text" required placeholder="e.g. State Bank of India" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" / autocomplete="off">
+          </div>
+          <div>
+            <label for="branchName" class="block text-xs font-semibold text-slate-700 mb-1">Branch Name <span class="text-rose-500">*</span></label>
+            <input id="branchName" type="text" required placeholder="e.g. Indore Main Branch" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" / autocomplete="off">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="customerName" class="block text-xs font-semibold text-slate-700 mb-1">Name of Customer / Co-Applicant <span class="text-rose-500">*</span></label>
+            <input id="customerName" type="text" required placeholder="Full name" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" / autocomplete="off">
+          </div>
+          <div>
+            <label for="ownershipDoc" class="block text-xs font-semibold text-slate-700 mb-1">Owner Name as per Document <span class="text-rose-500">*</span></label>
+            <input id="ownershipDoc" type="text" placeholder="Owner name as per document" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="relationOwnerDocWithApplicant" class="block text-xs font-semibold text-slate-700 mb-1">Relation of Owner (Doc) with Applicant <span class="text-rose-500">*</span></label>
+            <input id="relationOwnerDocWithApplicant" type="text" required autocomplete="off" placeholder="e.g. Self, Father, Wife, Brother" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <label for="propertyDocName" class="block text-xs font-semibold text-slate-700 mb-1">Name of Property Document Provided <span class="text-rose-500">*</span></label>
+            <input id="propertyDocName" type="text" placeholder="e.g. Sale Deed / Registry / Patta" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="personMet" class="block text-xs font-semibold text-slate-700 mb-1">Person Met at Site <span class="text-rose-500">*</span></label>
+            <input id="personMet" type="text" placeholder="Name of person at site" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="relationWithOwner" class="block text-xs font-semibold text-slate-700 mb-1">Relation of Person Met with Applicant <span class="text-rose-500">*</span></label>
+            <input id="relationWithOwner" type="text" placeholder="e.g. Self, Son, Wife, Tenant" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: Address, Road & Nearby Distances -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <button type="button" data-toggle-section="sec2" class="w-full flex items-center justify-between px-5 py-4 bg-slate-50/70 border-b border-slate-100 text-left cursor-pointer">
+          <span class="text-sm font-bold text-slate-900">2. Address, Road & Nearby Distances</span>
+          <span class="text-xs font-medium text-emerald-700" data-arrow="sec2">Hide</span>
+        </button>
+        <div id="sec2" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label for="address" class="block text-xs font-semibold text-slate-700 mb-1">Address <span class="text-rose-500">*</span></label>
+            <textarea id="address" rows="2" required placeholder="Complete property address" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" autocomplete="off"></textarea>
+          </div>
+          <div>
+            <label for="landmark" class="block text-xs font-semibold text-slate-700 mb-1">Landmark <span class="text-rose-500">*</span></label>
+            <input id="landmark" type="text" placeholder="Nearby famous place" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="developmentPct" class="block text-xs font-semibold text-slate-700 mb-1">Development % of this Area <span class="text-rose-500">*</span></label>
+            <input id="developmentPct" type="number" min="0" max="100" step="any" placeholder="e.g. 70" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div class="sm:col-span-2 bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div>
+                <p class="text-xs font-bold text-slate-800">GPS Coordinates (6 Decimal Digits)</p>
+                <p id="gpsStatus" class="text-[11px] text-slate-600 mt-0.5">Detecting current location...</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button id="detectGpsBtn" type="button" class="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                  Detect GPS
+                </button>
+                <button id="demoGpsBtn" type="button" class="text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">
+                  Test Sample GPS
+                </button>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="latitude" class="block text-xs font-semibold text-slate-700 mb-1">Latitude <span class="text-rose-500">*</span></label>
+                <input id="latitude" type="text" placeholder="e.g. 22.719568" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="longitude" class="block text-xs font-semibold text-slate-700 mb-1">Longitude <span class="text-rose-500">*</span></label>
+                <input id="longitude" type="text" placeholder="e.g. 75.857726" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+            </div>
+          </div>
+          <div>
+            <label for="roadType" class="block text-xs font-semibold text-slate-700 mb-1">Road Type <span class="text-rose-500">*</span></label>
+            <select id="roadType" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Road Type</option>
+              <option value="CC">CC</option>
+              <option value="Bitumen">Bitumen</option>
+              <option value="Murum">Murum</option>
+              <option value="WBM">WBM</option>
+              <option value="Kachchi">Kachchi</option>
+            </select>
+          </div>
+          <div>
+            <label for="roadWidth" class="block text-xs font-semibold text-slate-700 mb-1">Road Width (ft / m) <span class="text-rose-500">*</span></label>
+            <input id="roadWidth" type="text" placeholder="e.g. 20 ft" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="roadOwnership" class="block text-xs font-semibold text-slate-700 mb-1">Government Road or Private Road <span class="text-rose-500">*</span></label>
+            <select id="roadOwnership" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select</option>
+              <option value="Government Road">Government Road</option>
+              <option value="Private Road">Private Road</option>
+            </select>
+          </div>
+
+          <div class="sm:col-span-2 pt-2 border-t border-slate-100">
+            <p class="text-xs font-bold text-slate-700 mb-3">Distances in KM</p>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div>
+                <label for="distRailway" class="block text-[11px] font-medium text-slate-600 mb-1">Railway Station (KM) <span class="text-rose-500">*</span></label>
+                <input id="distRailway" type="number" min="0" step="0.1" placeholder="0.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="distBus" class="block text-[11px] font-medium text-slate-600 mb-1">Bus Stand (KM) <span class="text-rose-500">*</span></label>
+                <input id="distBus" type="number" min="0" step="0.1" placeholder="0.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="distHospital" class="block text-[11px] font-medium text-slate-600 mb-1">Hospital (KM) <span class="text-rose-500">*</span></label>
+                <input id="distHospital" type="number" min="0" step="0.1" placeholder="0.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="distSchool" class="block text-[11px] font-medium text-slate-600 mb-1">School (KM) <span class="text-rose-500">*</span></label>
+                <input id="distSchool" type="number" min="0" step="0.1" placeholder="0.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="distMarket" class="block text-[11px] font-medium text-slate-600 mb-1">Market (KM) <span class="text-rose-500">*</span></label>
+                <input id="distMarket" type="number" min="0" step="0.1" placeholder="0.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="distIndustrial" class="block text-[11px] font-medium text-slate-600 mb-1">Industrial Unit (KM) <span class="text-rose-500">*</span></label>
+                <input id="distIndustrial" type="number" min="0" step="0.1" placeholder="0.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="distMasjid" class="block text-[11px] font-medium text-slate-600 mb-1">Masjid (KM) <span class="text-rose-500">*</span></label>
+                <input id="distMasjid" type="number" min="0" step="0.1" placeholder="0.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Area, Diversion & Property Usage -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <button type="button" data-toggle-section="sec3" class="w-full flex items-center justify-between px-5 py-4 bg-slate-50/70 border-b border-slate-100 text-left cursor-pointer">
+          <span class="text-sm font-bold text-slate-900">3. Area, Diversion & Usage</span>
+          <span class="text-xs font-medium text-emerald-700" data-arrow="sec3">Hide</span>
+        </button>
+        <div id="sec3" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="landAreaDoc" class="block text-xs font-semibold text-slate-700 mb-1">Land Area in Document <span class="text-rose-500">*</span></label>
+            <div class="flex gap-2">
+              <input id="landAreaDoc" type="number" min="0" step="any" placeholder="e.g. 120" class="flex-1 min-w-0 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" required autocomplete="off" />
+              <select id="landAreaDocUnit" class="w-24 rounded-xl border border-slate-300 px-2.5 py-2 text-sm bg-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+                <option value="Sq.m.">Sq.m.</option>
+                <option value="Sq.ft.">Sq.ft.</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label for="landAreaActual" class="block text-xs font-semibold text-slate-700 mb-1">Actual Measured Total Land Area (in Sq.ft.) <span class="text-rose-500">*</span></label>
+            <input id="landAreaActual" type="number" min="0" step="any" placeholder="e.g. 118" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="gfArea" class="block text-xs font-semibold text-slate-700 mb-1">Ground Floor Buildup Area (in Sq.ft.) <span class="text-rose-500">*</span></label>
+            <input id="gfArea" type="number" min="0" step="any" placeholder="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="ffArea" class="block text-xs font-semibold text-slate-700 mb-1">First Floor Buildup Area (in Sq.ft.) <span class="text-rose-500">*</span></label>
+            <input id="ffArea" type="number" min="0" step="any" placeholder="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="sfArea" class="block text-xs font-semibold text-slate-700 mb-1">Second Floor Buildup Area (in Sq.ft.) <span class="text-rose-500">*</span></label>
+            <input id="sfArea" type="number" min="0" step="any" placeholder="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="constructionAge" class="block text-xs font-semibold text-slate-700 mb-1">Age of Construction (Years) <span class="text-rose-500">*</span></label>
+            <input id="constructionAge" type="number" min="0" step="1" placeholder="e.g. 5" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="diversionStatus" class="block text-xs font-semibold text-slate-700 mb-1">Diversion Status <span class="text-rose-500">*</span></label>
+            <select id="diversionStatus" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Diversion Status</option>
+              <option value="Residential">Residential</option>
+              <option value="Commercial">Commercial</option>
+              <option value="Industrial">Industrial</option>
+              <option value="Non-Diverted Agricultural">Non-Diverted Agricultural</option>
+            </select>
+          </div>
+          <div>
+            <label for="propertyUsage" class="block text-xs font-semibold text-slate-700 mb-1">Usage of the Property <span class="text-rose-500">*</span></label>
+            <select id="propertyUsage" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Usage</option>
+              <option value="Residential">Residential</option>
+              <option value="Commercial">Commercial</option>
+              <option value="Residential + Commercial">Residential + Commercial</option>
+              <option value="Industrial">Industrial</option>
+              <option value="Vacant">Vacant</option>
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="situatedWithin" class="block text-xs font-semibold text-slate-700 mb-1">Property Situated Within <span class="text-rose-500">*</span></label>
+            <select id="situatedWithin" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Body</option>
+              <option value="Gram Panchayat">Gram Panchayat</option>
+              <option value="Nagar Panchayat">Nagar Panchayat</option>
+              <option value="Jila Panchayat">Jila Panchayat</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Occupancy, Demarcation & Utilities -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <button type="button" data-toggle-section="sec4" class="w-full flex items-center justify-between px-5 py-4 bg-slate-50/70 border-b border-slate-100 text-left cursor-pointer">
+          <span class="text-sm font-bold text-slate-900">4. Occupancy, Demarcation & Utilities</span>
+          <span class="text-xs font-medium text-emerald-700" data-arrow="sec4">Hide</span>
+        </button>
+        <div id="sec4" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="occupantStatus" class="block text-xs font-semibold text-slate-700 mb-1">Occupant Status <span class="text-rose-500">*</span></label>
+            <select id="occupantStatus" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Occupant Status</option>
+              <option value="Self Occupied Residential Property">Self Occupied Residential Property</option>
+              <option value="Self Occupied Commercial">Self Occupied Commercial</option>
+              <option value="Self Occupied Residential + Commercial">Self Occupied Residential + Commercial</option>
+              <option value="Vacant Residential">Vacant Residential</option>
+              <option value="Vacant Commercial">Vacant Commercial</option>
+              <option value="Rented Residential">Rented Residential</option>
+              <option value="Rented Commercial">Rented Commercial</option>
+            </select>
+          </div>
+          <div>
+            <label for="tenantNames" class="block text-xs font-semibold text-slate-700 mb-1">If Rented, Name of the Tenants <span class="text-rose-500">*</span></label>
+            <input id="tenantNames" type="text" placeholder="Tenant name(s) or NA" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="plotDemarcated" class="block text-xs font-semibold text-slate-700 mb-1">Plot Demarcated With <span class="text-rose-500">*</span></label>
+            <select id="plotDemarcated" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Demarcation</option>
+              <option value="Brick wall">Brick wall</option>
+              <option value="Stone Wall">Stone Wall</option>
+              <option value="Mud Wall">Mud Wall</option>
+              <option value="Rundhan">Rundhan</option>
+              <option value="Tar Fencing">Tar Fencing</option>
+              <option value="Not demarcated">Not demarcated</option>
+            </select>
+          </div>
+          <div>
+            <label for="identifiedThrough" class="block text-xs font-semibold text-slate-700 mb-1">Property Identified Through <span class="text-rose-500">*</span></label>
+            <input id="identifiedThrough" type="text" placeholder="e.g. Local Inquiry / Patwari / Neighbour" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="waterAvailability" class="block text-xs font-semibold text-slate-700 mb-1">Availability of Water <span class="text-rose-500">*</span></label>
+            <select id="waterAvailability" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Water Source</option>
+              <option value="Bor">Bor</option>
+              <option value="Municipal">Municipal</option>
+              <option value="Not Available">Not Available</option>
+            </select>
+          </div>
+
+          <div class="sm:col-span-2 pt-2 border-t border-slate-100">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <p class="text-xs font-bold text-slate-700">Availability of Electricity</p>
+              <select id="electricityStatus" class="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="Available">Available (Enter Details)</option>
+                <option value="Not Available">Not Available</option>
+                <option value="Ekal Batti">Ekal Batti</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="elecBpNo" class="block text-[11px] font-medium text-slate-600 mb-1">BP Number <span class="text-rose-500">*</span></label>
+                <input id="elecBpNo" type="text" placeholder="BP Number" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="elecOwnerName" class="block text-[11px] font-medium text-slate-600 mb-1">Name of Owner (on Bill) <span class="text-rose-500">*</span></label>
+                <input id="elecOwnerName" type="text" placeholder="Owner name on bill" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div class="sm:col-span-2">
+                <label for="relationElecOwnerWithApplicant" class="block text-[11px] font-medium text-slate-600 mb-1">Relation of Electricity Bill Owner with Applicant <span class="text-rose-500">*</span></label>
+                <input id="relationElecOwnerWithApplicant" type="text" required autocomplete="off" placeholder="e.g. Self, Father, Previous Owner" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label for="elecMeterBill" class="block text-[11px] font-medium text-slate-600 mb-1">Meter No. on Bill <span class="text-rose-500">*</span></label>
+                <input id="elecMeterBill" type="text" placeholder="Meter no. on bill" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+              <div>
+                <label for="elecMeterActual" class="block text-[11px] font-medium text-slate-600 mb-1">Meter No. on Meter <span class="text-rose-500">*</span></label>
+                <input id="elecMeterActual" type="text" placeholder="Actual meter no." class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Dimensions & Boundaries (Document vs Actual) -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <button type="button" data-toggle-section="sec5" class="w-full flex items-center justify-between px-5 py-4 bg-slate-50/70 border-b border-slate-100 text-left cursor-pointer">
+          <span class="text-sm font-bold text-slate-900">5. Dimensions & Boundaries (Doc vs Actual)</span>
+          <span class="text-xs font-medium text-emerald-700" data-arrow="sec5">Hide</span>
+        </button>
+        <div id="sec5" class="p-5 space-y-5">
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <p class="text-xs font-bold text-slate-700">Dimension As per Document (in Feet)</p>
+              <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
+                <input id="dimDocNA" type="checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" / autocomplete="off">
+                <span>Not Available</span>
+              </label>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <input id="dimDocN" type="text" inputmode="decimal" placeholder="North (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="dimDocS" type="text" inputmode="decimal" placeholder="South (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="dimDocE" type="text" inputmode="decimal" placeholder="East (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="dimDocW" type="text" inputmode="decimal" placeholder="West (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-bold text-slate-700 mb-2">Dimension As per Actual (in Feet)</p>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <input id="dimActN" type="text" inputmode="decimal" placeholder="North (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="dimActS" type="text" inputmode="decimal" placeholder="South (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="dimActE" type="text" inputmode="decimal" placeholder="East (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="dimActW" type="text" inputmode="decimal" placeholder="West (ft)" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <p class="text-xs font-bold text-slate-700">Boundaries As per Document</p>
+              <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
+                <input id="bndDocNA" type="checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" / autocomplete="off">
+                <span>Not Available</span>
+              </label>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <input id="bndDocN" type="text" placeholder="North" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="bndDocS" type="text" placeholder="South" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="bndDocE" type="text" placeholder="East" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="bndDocW" type="text" placeholder="West" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-bold text-slate-700 mb-2">Boundaries As per Actual</p>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <input id="bndActN" type="text" placeholder="North" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="bndActS" type="text" placeholder="South" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="bndActE" type="text" placeholder="East" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+              <input id="bndActW" type="text" placeholder="West" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+            </div>
+          </div>
+
+          <div>
+            <label for="boundaryMismatch" class="block text-xs font-semibold text-slate-700 mb-1">Which Boundary is Not Matching and Why <span class="text-rose-500">*</span></label>
+            <textarea id="boundaryMismatch" rows="2" placeholder="Specify direction and reason, or None" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" required autocomplete="off"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 6: Structure, Hazards & Valuation -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <button type="button" data-toggle-section="sec6" class="w-full flex items-center justify-between px-5 py-4 bg-slate-50/70 border-b border-slate-100 text-left cursor-pointer">
+          <span class="text-sm font-bold text-slate-900">6. Structure, Hazards & Valuation</span>
+          <span class="text-xs font-medium text-emerald-700" data-arrow="sec6">Hide</span>
+        </button>
+        <div id="sec6" class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="structureType" class="block text-xs font-semibold text-slate-700 mb-1">Type of Structure <span class="text-rose-500">*</span></label>
+            <select id="structureType" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" required>
+              <option value="">Select Structure</option>
+              <option value="Load Bearing">Load Bearing</option>
+              <option value="Framed Structure">Framed Structure</option>
+              <option value="Tin Shaded Structure">Tin Shaded Structure</option>
+            </select>
+          </div>
+          <div>
+            <label for="workCompletedPct" class="block text-xs font-semibold text-slate-700 mb-1">% of Work Completed as on Date <span class="text-rose-500">*</span></label>
+            <input id="workCompletedPct" type="number" min="0" max="100" step="any" placeholder="0 - 100" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="internalComposition" class="block text-xs font-semibold text-slate-700 mb-1">Internal Composition (Rooms, Shop, Kitchen, Hall, Bathroom, etc.) <span class="text-rose-500">*</span></label>
+            <textarea id="internalComposition" rows="2" placeholder="e.g. 2 Rooms, 1 Hall, 1 Kitchen, 1 Bathroom" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" required autocomplete="off"></textarea>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="nearbyHazards" class="block text-xs font-semibold text-slate-700 mb-1">Near Nala / Open Canal / HT Line / Railway Line / Gas Pipe Line & Distance (KM) <span class="text-rose-500">*</span></label>
+            <textarea id="nearbyHazards" rows="2" placeholder="e.g. HT Line at 20 feet or Not Available" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" required autocomplete="off"></textarea>
+          </div>
+          <div>
+            <label for="landCostPerDismil" class="block text-xs font-semibold text-slate-700 mb-1">Land Cost at this Location per Dismil <span class="text-rose-500">*</span></label>
+            <input id="landCostPerDismil" type="number" min="0" step="any" placeholder="Amount" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+          <div>
+            <label for="constructionCost" class="block text-xs font-semibold text-slate-700 mb-1">Construction Cost (Max 1000 if completed) <span class="text-rose-500">*</span></label>
+            <input id="constructionCost" type="number" min="0" max="1000" step="any" placeholder="Max 1000" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 7: Property Photographs (GPS Camera) -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <button type="button" data-toggle-section="sec7" class="w-full flex items-center justify-between px-5 py-4 bg-slate-50/70 border-b border-slate-100 text-left cursor-pointer">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-bold text-slate-900">7. Property Photographs (GPS Camera)</span>
+            <span id="photoCounterBadge" class="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">0 / 30</span>
+          </div>
+          <span class="text-xs font-medium text-emerald-700" data-arrow="sec7">Hide</span>
+        </button>
+        <div id="sec7" class="p-5 space-y-5">
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
+            <strong>Property Photos:</strong> Tap <strong>Click GPS Photo</strong> to stamp Compass (top-left), Mini-Map (bottom-left), and Date, Lat/Long &amp; Address (bottom-right).<br>
+            <strong>Maps &amp; Property Documents:</strong> Plain upload without GPS stamp.
+          </div>
+
+          <!-- 22 Property Photo Slots -->
+          <div id="photoSlotsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5"></div>
+
+          <!-- Auto-Generated GPS Map Location Box -->
+          <div class="pt-2 border-t border-slate-100">
+            <p class="text-xs font-bold text-slate-700 mb-3">Google Map Location (Auto-Generated from GPS)</p>
+            <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/60 max-w-sm">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <p class="text-xs font-semibold text-slate-800">GPS Map Location <span class="text-rose-500 font-bold">*</span></p>
+                <span id="mapCoordsText" class="text-[11px] font-medium text-emerald-700">Lat: 0.000000 • Lng: 0.000000</span>
+              </div>
+              <div class="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                <canvas id="gpsMapCanvas" width="480" height="280" class="w-full h-44 object-cover block"></canvas>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-2">Updates automatically when Latitude &amp; Longitude are detected or edited.</p>
+            </div>
+          </div>
+
+          <!-- 4 Document / Map Photo Slots -->
+          <div class="pt-2 border-t border-slate-100">
+            <p class="text-xs font-bold text-slate-700 mb-3">Maps &amp; Property Documents</p>
+            <div id="docSlotsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5"></div>
+          </div>
+        </div>
+      </section>
+
+      <button id="shareSubmitBtn" type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold py-3.5 px-4 rounded-2xl text-sm transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2">
+        <span>Share Visit Entry (Excel on WhatsApp)</span>
+      </button>
+    </form>
+
+    <!-- Saved Entries List -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900">Saved Visit Entries</h2>
+          <p id="entryCount" class="text-xs text-slate-500 mt-0.5">0 entries saved</p>
+        </div>
+        <button id="clearAllBtn" type="button" class="hidden text-xs font-medium text-rose-600 hover:text-rose-700 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer">
+          Clear All
+        </button>
+      </div>
+
+      <div id="emptyState" class="text-center py-8 px-4 border border-dashed border-slate-200 rounded-xl">
+        <p class="text-sm font-medium text-slate-600">No entries yet</p>
+        <p class="text-xs text-slate-400 mt-1">Fill the form above and tap "Save Visit Entry" to see it here.</p>
+      </div>
+
+      <div id="entriesList" class="space-y-3"></div>
+    </section>
+  </div>
+
+  <script>
+    // Paste your Google Sheet "Publish to Web -> CSV" link below for remote online control!
+    // Sheet columns: Mobile,Status (e.g. 9876543210,ALLOW or 9876543210,BLOCK)
+    const ACCESS_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSwYHQDEMF1g1H7rfUvkikGTH6XPXsUIgY1xtjlWnIe4xzoF_UVHX7urEFIV3N9t9Gw8d9O_CVlP61s/pub?output=csv';
+    const ACCESS_PIN = '2026'; // Fallback local PIN when ACCESS_SHEET_CSV_URL is empty
+    const UNLOCK_KEY = 'property_visit_app_unlocked_user';
+    const STORAGE_KEY = 'property_visit_step1_entries';
+    const DRAFT_KEY = 'field_visit_draft_fields_v1';
+    const DRAFT_PHOTOS_KEY = 'field_visit_draft_photos_v1';
+
+    function saveDraft() {
+      try {
+        const draft = {};
+        FIELD_IDS.forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) draft[id] = el.value;
+        });
+        draft._dimDocNA = !!(document.getElementById('dimDocNA') && document.getElementById('dimDocNA').checked);
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch (e) {}
+      try {
+        localStorage.setItem(DRAFT_PHOTOS_KEY, JSON.stringify(currentPhotos));
+      } catch (e) {}
+    }
+
+    function loadDraft() {
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          FIELD_IDS.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el && draft[id] !== undefined && draft[id] !== '') {
+              el.value = draft[id];
+            }
+          });
+          if (draft._dimDocNA && document.getElementById('dimDocNA')) {
+            document.getElementById('dimDocNA').checked = true;
+          }
+          if (typeof syncTenantField === 'function') syncTenantField();
+        }
+      } catch (e) {}
+      try {
+        const rawP = localStorage.getItem(DRAFT_PHOTOS_KEY);
+        if (rawP) {
+          const parsedP = JSON.parse(rawP);
+          if (parsedP && typeof parsedP === 'object') {
+            currentPhotos = parsedP;
+          }
+        }
+      } catch (e) {}
+    }
+
+    function clearDraft() {
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(DRAFT_PHOTOS_KEY);
+      } catch (e) {}
+    }
+
+    async function verifyRemoteAccess(mobileKey, pinKey) {
+      if (!ACCESS_SHEET_CSV_URL) {
+        return pinKey === ACCESS_PIN
+          ? { ok: true, mobile: mobileKey }
+          : { ok: false, reason: 'Incorrect PIN. Contact admin.' };
+      }
+      try {
+        const res = await fetch(`${ACCESS_SHEET_CSV_URL}${ACCESS_SHEET_CSV_URL.includes('?') ? '&' : '?'}t=${Date.now()}`, {
+          cache: 'no-store'
+        });
+        if (!res.ok) throw new Error('Network error');
+        const csv = await res.text();
+        const normMob = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+        const targetMob = normMob(mobileKey);
+        const rows = csv.split(/\r?\n/).map((r) => r.split(',').map((c) => c.trim().replace(/^"|"$/g, '')));
+        const match = rows.find((cols) => targetMob && cols.some((cell) => normMob(cell) === targetMob));
+        if (!match) {
+          return { ok: false, reason: 'Mobile number not registered. Contact admin.' };
+        }
+        const upperCols = match.map((c) => c.toUpperCase());
+        if (!upperCols.includes('ALLOW')) {
+          return { ok: false, reason: 'Your access has been blocked by Admin.' };
+        }
+        const pinMatched = match.some((cell) => cell === pinKey && normMob(cell) !== targetMob);
+        if (!pinMatched) {
+          return { ok: false, reason: 'Incorrect Secret PIN for this mobile number.' };
+        }
+        const empName = match.find((c) => c && normMob(c) !== targetMob && c !== pinKey && c.toUpperCase() !== 'ALLOW' && c.toUpperCase() !== 'BLOCK') || '';
+        return { ok: true, name: empName, mobile: mobileKey };
+      } catch (err) {
+        return { ok: false, reason: 'Internet required to verify your access.' };
+      }
+    }
+
+    async function checkLockState() {
+      const lockEl = document.getElementById('lockScreen');
+      const errEl = document.getElementById('pinError');
+      try {
+        const savedRaw = localStorage.getItem(UNLOCK_KEY);
+        if (savedRaw) {
+          let saved = null;
+          try { saved = JSON.parse(savedRaw); } catch (e) { saved = null; }
+          if (saved && saved.mobile && saved.pin) {
+            if (!ACCESS_SHEET_CSV_URL && saved.pin === ACCESS_PIN) {
+              if (document.getElementById('engineerMobile') && saved.mobile) {
+                document.getElementById('engineerMobile').value = saved.mobile;
+              }
+              lockEl.classList.add('hidden');
+              return;
+            }
+            if (ACCESS_SHEET_CSV_URL) {
+              const check = await verifyRemoteAccess(saved.mobile, saved.pin);
+              if (check.ok) {
+                if (check.name && document.getElementById('engineerName')) {
+                  document.getElementById('engineerName').value = check.name;
+                }
+                if (check.mobile && document.getElementById('engineerMobile')) {
+                  document.getElementById('engineerMobile').value = check.mobile;
+                }
+                lockEl.classList.add('hidden');
+                return;
+              }
+              if (check.reason === 'Internet required to verify your access.') {
+                // Allow already-verified employee to work offline at remote sites
+                if (saved.name && document.getElementById('engineerName')) {
+                  document.getElementById('engineerName').value = saved.name;
+                }
+                if (saved.mobile && document.getElementById('engineerMobile')) {
+                  document.getElementById('engineerMobile').value = saved.mobile;
+                }
+                lockEl.classList.add('hidden');
+                return;
+              }
+              localStorage.removeItem(UNLOCK_KEY);
+              errEl.textContent = check.reason;
+              errEl.classList.remove('hidden');
+            }
+          }
+        }
+      } catch (e) {}
+      lockEl.classList.remove('hidden');
+    }
+
+    document.getElementById('unlockForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const enteredMobile = document.getElementById('mobileAuthInput').value.trim();
+      const enteredPin = document.getElementById('pinInput').value.trim();
+      const errEl = document.getElementById('pinError');
+      const btn = document.getElementById('unlockBtn');
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+
+      const result = await verifyRemoteAccess(enteredMobile, enteredPin);
+      btn.disabled = false;
+      btn.textContent = 'Verify & Unlock';
+
+      if (result.ok) {
+        try {
+          localStorage.setItem(UNLOCK_KEY, JSON.stringify({ mobile: enteredMobile, pin: enteredPin, name: result.name || '' }));
+        } catch (err) {}
+        if (result.name && document.getElementById('engineerName')) {
+          document.getElementById('engineerName').value = result.name;
+        }
+        if (result.mobile && document.getElementById('engineerMobile')) {
+          document.getElementById('engineerMobile').value = result.mobile;
+        }
+        document.getElementById('lockScreen').classList.add('hidden');
+        errEl.classList.add('hidden');
+        document.getElementById('pinInput').value = '';
+        requestAllAppPermissions(false);
+      } else {
+        errEl.textContent = result.reason;
+        errEl.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('lockAppBtn').addEventListener('click', () => {
+      try { localStorage.removeItem(UNLOCK_KEY); } catch (err) {}
+      document.getElementById('lockScreen').classList.remove('hidden');
+    });
+
+    checkLockState();
+    let entries = [];
+    let currentPhotos = {};
+    let currentCompassHeading = 0;
+    let hasCompassSensor = false;
+
+    function handleOrientation(e) {
+      let heading = null;
+      if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+        heading = e.webkitCompassHeading;
+      } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
+        heading = (360 - e.alpha) % 360;
+      }
+      if (heading !== null) {
+        currentCompassHeading = (heading + 360) % 360;
+        hasCompassSensor = true;
+      }
+    }
+
+    if ('ondeviceorientationabsolute' in window) {
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    } else if ('DeviceOrientationEvent' in window) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+
+    function formatBearing(deg) {
+      const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      const d = Math.round(((deg % 360) + 360) % 360);
+      const idx = Math.round(d / 45) % 8;
+      return `${d}° ${dirs[idx]}`;
+    }
+
+    function savePhotoToDevice(dataUrl, filename) {
+      try {
+        const parts = dataUrl.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        const binStr = atob(parts[1]);
+        const arr = new Uint8Array(binStr.length);
+        for (let i = 0; i < binStr.length; i++) arr[i] = binStr.charCodeAt(i);
+        const blob = new Blob([arr], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } catch (e) {}
+    }
+
+    const PHOTO_SLOTS = [
+      { id: 'photo_front_owner', label: 'Property Front elevation View with owner', group: 'property', selfie: false, required: true },
+      { id: 'photo_boundary_gate', label: 'Boundary / Main gate', group: 'property', selfie: false, required: true },
+      { id: 'photo_selfie_outer', label: 'Selfie with Property outer view', group: 'property', selfie: true, required: true },
+      { id: 'photo_selfie_inside', label: 'Selfie with Property inside view', group: 'property', selfie: true, required: true },
+      { id: 'photo_kitchen', label: 'Kitchen Photograph', group: 'property', selfie: false, required: true },
+      { id: 'photo_approach_road', label: 'Approach Road / Surrounding Area Photograph', group: 'property', selfie: false, required: true },
+      { id: 'photo_internal_1', label: 'Internal Photograph 1', group: 'property', selfie: false, required: true },
+      { id: 'photo_internal_2', label: 'Internal Photograph 2', group: 'property', selfie: false, required: true },
+      { id: 'photo_internal_3', label: 'Internal Photograph 3', group: 'property', selfie: false, required: true },
+      { id: 'photo_internal_4', label: 'Internal Photograph 4', group: 'property', selfie: false, required: true },
+      { id: 'photo_rooftop_1', label: 'Neighbourhood Photograph from the roof top 1', group: 'property', selfie: false, required: true },
+      { id: 'photo_rooftop_2', label: 'Neighbourhood Photograph from the roof top 2', group: 'property', selfie: false, required: true },
+      { id: 'photo_rooftop_3', label: 'Neighbourhood Photograph from the roof top 3', group: 'property', selfie: false, required: true },
+      { id: 'photo_rooftop_4', label: 'Neighbourhood Photograph from the roof top 4', group: 'property', selfie: false, required: true },
+      { id: 'photo_front_side_1', label: 'Neighbourhood Photograph from front Side 1', group: 'property', selfie: false, required: true },
+      { id: 'photo_front_side_2', label: 'Neighbourhood Photograph from front Side 2', group: 'property', selfie: false, required: true },
+      { id: 'photo_other_1', label: 'Other 1', group: 'property', selfie: false, required: false },
+      { id: 'photo_other_2', label: 'Other 2', group: 'property', selfie: false, required: false },
+      { id: 'photo_other_3', label: 'Other 3', group: 'property', selfie: false, required: false },
+      { id: 'photo_other_4', label: 'Other 4', group: 'property', selfie: false, required: false },
+      { id: 'photo_other_5', label: 'Other 5', group: 'property', selfie: false, required: false },
+      { id: 'photo_other_6', label: 'Other 6', group: 'property', selfie: false, required: false },
+      { id: 'photo_other_7', label: 'Other 7', group: 'property', selfie: false, required: false },
+      { id: 'photo_other_8', label: 'Other 8', group: 'property', selfie: false, required: false },
+      { id: 'photo_ebill', label: 'E-Bill Photograph', group: 'property', selfie: false, required: true },
+      { id: 'photo_meter', label: 'Meter Photo', group: 'property', selfie: false, required: true },
+      { id: 'doc_draft_map', label: 'Draft Map of house as per site', group: 'doc', selfie: false, required: true },
+      { id: 'doc_property_paper', label: 'Property Paper', group: 'doc', selfie: false, required: true, multiple: true },
+      { id: 'doc_bhuiya_p2', label: 'Bhuiya.cg.nic.in Website P-2', group: 'doc', selfie: false, required: false },
+      { id: 'doc_najari_naksha', label: 'Najari Naksha', group: 'doc', selfie: false, required: false }
+    ];
+
+    const FIELD_IDS = [
+      'engineerName', 'engineerMobile', 'visitDate', 'bankName', 'branchName', 'customerName', 'ownershipDoc', 'relationOwnerDocWithApplicant', 'propertyDocName',
+      'personMet', 'relationWithOwner', 'address', 'landmark', 'developmentPct',
+      'latitude', 'longitude', 'roadType', 'roadWidth', 'roadOwnership',
+      'distRailway', 'distBus', 'distHospital', 'distSchool', 'distMarket',
+      'distIndustrial', 'distMasjid', 'landAreaDoc', 'landAreaDocUnit', 'landAreaActual', 'gfArea',
+      'ffArea', 'sfArea', 'constructionAge', 'diversionStatus', 'propertyUsage',
+      'situatedWithin', 'occupantStatus', 'tenantNames', 'plotDemarcated',
+      'identifiedThrough', 'waterAvailability', 'elecBpNo', 'elecOwnerName',
+      'elecMeterBill', 'elecMeterActual', 'dimDocN', 'dimDocS', 'dimDocE', 'dimDocW',
+      'dimActN', 'dimActS', 'dimActE', 'dimActW', 'bndDocN', 'bndDocS', 'bndDocE',
+      'bndDocW', 'bndActN', 'bndActS', 'bndActE', 'bndActW', 'boundaryMismatch',
+      'structureType', 'workCompletedPct', 'internalComposition', 'nearbyHazards',
+      'landCostPerDismil', 'constructionCost'
+    ];
+
+    function setDefaultDate() {
+      const dateEl = document.getElementById('visitDate');
+      if (dateEl && !dateEl.value) {
+        dateEl.value = new Date().toISOString().split('T')[0];
+      }
+    }
+
+    function loadEntries() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        entries = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        entries = [];
+      }
+    }
+
+    function saveEntries() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      } catch (e) {
+        try {
+          const lite = entries.map((item) => ({ ...item, photos: {} }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(lite));
+        } catch (err) {
+          // Ignore storage errors
+        }
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 2500);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Section accordion toggle
+    document.querySelectorAll('[data-toggle-section]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-toggle-section');
+        const body = document.getElementById(targetId);
+        const label = btn.querySelector(`[data-arrow="${targetId}"]`);
+        const isHidden = body.classList.toggle('hidden');
+        if (label) label.textContent = isHidden ? 'Show' : 'Hide';
+      });
+    });
+
+    function renderEntries() {
+      const listEl = document.getElementById('entriesList');
+      const emptyEl = document.getElementById('emptyState');
+      const countEl = document.getElementById('entryCount');
+      const clearBtn = document.getElementById('clearAllBtn');
+
+      countEl.textContent = entries.length === 1 ? '1 entry saved' : `${entries.length} entries saved`;
+
+      if (entries.length === 0) {
+        emptyEl.classList.remove('hidden');
+        listEl.innerHTML = '';
+        clearBtn.classList.add('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      clearBtn.classList.remove('hidden');
+
+      listEl.innerHTML = entries
+        .map((item) => {
+          const filledCount = FIELD_IDS.filter((id) => item[id] && String(item[id]).trim() !== '').length;
+          return `
+          <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-900 truncate">${escapeHtml(item.customerName)}</p>
+                <p class="text-xs font-medium text-emerald-700 mt-0.5">${item.bankName ? `${escapeHtml(item.bankName)} - ` : ''}${escapeHtml(item.branchName)} • ${escapeHtml(item.visitDate)}${item.engineerName ? ` • Eng: ${escapeHtml(item.engineerName)}${item.engineerMobile ? ` (${escapeHtml(item.engineerMobile)})` : ''}` : ''}</p>
+                <p class="text-xs text-slate-600 mt-1 line-clamp-2">${escapeHtml(item.address)}</p>
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" data-share-id="${item.id}" class="text-xs font-semibold text-blue-700 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors cursor-pointer">
+                  Share Excel
+                </button>
+                <button type="button" data-toggle-details="${item.id}" class="text-xs font-medium text-emerald-700 hover:bg-emerald-50 px-2 py-1 rounded-md transition-colors cursor-pointer">
+                  Details
+                </button>
+                <button type="button" data-delete-id="${item.id}" class="text-xs text-slate-400 hover:text-rose-600 px-2 py-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer">
+                  Delete
+                </button>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-2 text-[11px] text-slate-500">
+              <span class="bg-white border border-slate-200 px-2 py-0.5 rounded-md">${filledCount}/${FIELD_IDS.length} fields filled</span>
+              <span class="bg-white border border-slate-200 px-2 py-0.5 rounded-md">${item.photoCount || Object.keys(item.photos || {}).length} photos</span>
+              ${item.propertyUsage ? `<span class="bg-white border border-slate-200 px-2 py-0.5 rounded-md">${escapeHtml(item.propertyUsage)}</span>` : ''}
+              ${item.workCompletedPct ? `<span class="bg-white border border-slate-200 px-2 py-0.5 rounded-md">${escapeHtml(item.workCompletedPct)}% completed</span>` : ''}
+            </div>
+            <div id="details-${item.id}" class="hidden mt-3 pt-3 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-700">
+              ${FIELD_IDS.filter((id) => item[id] && String(item[id]).trim() !== '')
+                .map((id) => `<div><span class="font-semibold text-slate-500">${escapeHtml(id)}:</span> ${escapeHtml(item[id])}</div>`)
+                .join('')}
+            </div>
+          </div>
+        `;
+        })
+        .join('');
+    }
+
+    document.getElementById('entryForm').addEventListener('invalid', (e) => {
+      const target = e.target;
+      const sectionBody = target.closest('[id^="sec"]');
+      if (sectionBody && sectionBody.classList.contains('hidden')) {
+        sectionBody.classList.remove('hidden');
+        const label = document.querySelector(`[data-arrow="${sectionBody.id}"]`);
+        if (label) label.textContent = 'Hide';
+      }
+      if (!window._invalidToastShown) {
+        window._invalidToastShown = true;
+        showToast('Please fill all mandatory fields');
+        setTimeout(() => { window._invalidToastShown = false; }, 1000);
+      }
+    }, true);
+
+    document.getElementById('entryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const record = { id: String(Date.now()) };
+      FIELD_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        record[id] = el ? el.value.trim() : '';
+      });
+
+      const missingField = FIELD_IDS.find((id) => !record[id]);
+      if (missingField) {
+        showToast('Please fill all mandatory fields');
+        const el = document.getElementById(missingField);
+        if (el) el.focus();
+        return;
+      }
+
+      const missingPhoto = PHOTO_SLOTS.find((slot) => { if (!slot.required) return false; const v = currentPhotos[slot.id]; return Array.isArray(v) ? v.length === 0 : !v; });
+      if (missingPhoto) {
+        const sec7Body = document.getElementById('sec7');
+        if (sec7Body && sec7Body.classList.contains('hidden')) {
+          sec7Body.classList.remove('hidden');
+          const lbl = document.querySelector('[data-arrow="sec7"]');
+          if (lbl) lbl.textContent = 'Hide';
+        }
+        const card = document.getElementById(`card-${missingPhoto.id}`);
+        if (card) {
+          card.classList.add('ring-2', 'ring-rose-500', 'border-rose-400');
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        showToast(`Photo required: ${missingPhoto.label}`);
+        return;
+      }
+
+      record.photos = { ...currentPhotos };
+      record.photoCount = Object.keys(currentPhotos).length;
+
+      entries.unshift(record);
+      saveEntries();
+      renderEntries();
+
+      const btn = document.getElementById('shareSubmitBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Generating Excel & Preparing Share...';
+      }
+
+      try {
+        if (ACCESS_SHEET_CSV_URL) {
+          let saved = {};
+          try { saved = JSON.parse(localStorage.getItem(UNLOCK_KEY) || '{}'); } catch (err) {}
+          const liveCheck = await verifyRemoteAccess(saved.mobile || '', saved.pin || '');
+          if (!liveCheck.ok && liveCheck.reason !== 'Internet required to verify your access.') {
+            try { localStorage.removeItem(UNLOCK_KEY); } catch (err) {}
+            const errEl = document.getElementById('pinError');
+            if (errEl) {
+              errEl.textContent = liveCheck.reason;
+              errEl.classList.remove('hidden');
+            }
+            document.getElementById('lockScreen').classList.remove('hidden');
+            showToast(liveCheck.reason);
+            return;
+          }
+        }
+        await exportAndShareEntry(record);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Share Visit Entry (Excel on WhatsApp)</span>';
+        }
+      }
+
+      e.target.reset();
+      ['dimDocN', 'dimDocS', 'dimDocE', 'dimDocW', 'bndDocN', 'bndDocS', 'bndDocE', 'bndDocW', 'elecBpNo', 'elecOwnerName', 'relationElecOwnerWithApplicant', 'elecMeterBill', 'elecMeterActual'].forEach((fid) => {
+        const el = document.getElementById(fid);
+        if (el) {
+          el.readOnly = false;
+          el.classList.remove('bg-slate-100', 'text-slate-500');
+        }
+      });
+      clearDraft();
+      syncTenantField();
+      currentPhotos = {};
+      renderPhotoSlots();
+      setDefaultDate();
+      detectGPS(false);
+    });
+
+    document.getElementById('entriesList').addEventListener('click', (e) => {
+      const delBtn = e.target.closest('[data-delete-id]');
+      if (delBtn) {
+        const id = delBtn.getAttribute('data-delete-id');
+        entries = entries.filter((item) => item.id !== id);
+        saveEntries();
+        renderEntries();
+        showToast('Entry deleted');
+        return;
+      }
+
+      const shareBtn = e.target.closest('[data-share-id]');
+      if (shareBtn) {
+        const id = shareBtn.getAttribute('data-share-id');
+        const found = entries.find((item) => item.id === id);
+        if (found) exportAndShareEntry(found);
+        return;
+      }
+
+      const detBtn = e.target.closest('[data-toggle-details]');
+      if (detBtn) {
+        const id = detBtn.getAttribute('data-toggle-details');
+        const panel = document.getElementById(`details-${id}`);
+        if (panel) panel.classList.toggle('hidden');
+      }
+    });
+
+    document.getElementById('clearAllBtn').addEventListener('click', () => {
+      entries = [];
+      saveEntries();
+      renderEntries();
+      showToast('All entries cleared');
+    });
+
+    function applyCoordinates(lat, lng, sourceLabel, accuracyMeters) {
+      const latEl = document.getElementById('latitude');
+      const lngEl = document.getElementById('longitude');
+      const statusEl = document.getElementById('gpsStatus');
+      const latStr = Number(lat).toFixed(6);
+      const lngStr = Number(lng).toFixed(6);
+      latEl.value = latStr;
+      lngEl.value = lngStr;
+      const accNote = accuracyMeters ? ` (±${Math.round(accuracyMeters)}m)` : '';
+      statusEl.textContent = `${sourceLabel}: ${latStr}, ${lngStr}${accNote}`;
+      updateMapLink();
+      const addrEl = document.getElementById('address');
+      if (addrEl && !addrEl.value.trim()) {
+        reverseGeocode(lat, lng).then((addr) => {
+          if (addr && addr !== 'Site Address' && !addrEl.value.trim()) {
+            addrEl.value = addr;
+          }
+        });
+      }
+    }
+
+    function detectGPS(showFeedback = false) {
+      const statusEl = document.getElementById('gpsStatus');
+
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'GPS not supported here. Type Lat/Lng manually or use Test Sample GPS.';
+        return;
+      }
+
+      statusEl.textContent = 'Detecting current location...';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
+          if (showFeedback) showToast('GPS location updated!');
+        },
+        (err) => {
+          if (err.code === 1) {
+            statusEl.textContent = 'Preview sandbox blocks live GPS. Open in mobile Chrome/HTTPS for real GPS, or tap Test Sample GPS / type manually.';
+            if (showFeedback) showToast('GPS blocked in preview — works in real browser');
+            return;
+          }
+          // Retry once with standard accuracy for desktops / indoor signal
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
+              if (showFeedback) showToast('GPS location updated!');
+            },
+            () => {
+              statusEl.textContent = 'Location unavailable right now. Type Lat/Lng manually or tap Test Sample GPS.';
+              if (showFeedback) showToast('Could not detect GPS');
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    }
+
+    async function requestAllAppPermissions(fromUserTap = false) {
+      const gpsBadge = document.getElementById('permGpsBadge');
+      const camBadge = document.getElementById('permCamBadge');
+
+      // 1. Trigger Location (GPS) Permission Popup
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (gpsBadge) {
+              gpsBadge.textContent = 'GPS: Allowed';
+              gpsBadge.className = 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
+            }
+            applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
+          },
+          () => {
+            if (gpsBadge) {
+              gpsBadge.textContent = 'GPS: Blocked';
+              gpsBadge.className = 'px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium';
+            }
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+      }
+
+      // 2. Trigger Camera Permission Popup
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          stream.getTracks().forEach((t) => t.stop());
+          if (camBadge) {
+            camBadge.textContent = 'Camera: Allowed';
+            camBadge.className = 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
+          }
+        } catch (err) {
+          if (camBadge) {
+            camBadge.textContent = 'Camera: Tap to Allow';
+            camBadge.className = 'px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium';
+          }
+        }
+      }
+
+      // 3. Trigger Notification Permission Popup
+      const notifBadge = document.getElementById('permNotifBadge');
+      if ('Notification' in window && typeof Notification.requestPermission === 'function') {
+        try {
+          const nRes = await Notification.requestPermission();
+          if (notifBadge) {
+            notifBadge.textContent = nRes === 'granted' ? 'Notification: Allowed' : 'Notification: Blocked';
+            notifBadge.className = nRes === 'granted'
+              ? 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium'
+              : 'px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium';
+          }
+        } catch (e) {
+          if (notifBadge) notifBadge.textContent = 'Notification: N/A';
+        }
+      } else if (notifBadge) {
+        notifBadge.textContent = 'Notification: N/A';
+      }
+
+      // 4. Request Persistent Storage
+      const storageBadge = document.getElementById('permStorageBadge');
+      if (navigator.storage && typeof navigator.storage.persist === 'function') {
+        try {
+          const persisted = await navigator.storage.persist();
+          if (storageBadge) {
+            storageBadge.textContent = persisted ? 'Storage: Allowed' : 'Storage: Ready';
+            storageBadge.className = 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
+          }
+        } catch (e) {
+          if (storageBadge) storageBadge.textContent = 'Storage: Ready';
+        }
+      } else if (storageBadge) {
+        storageBadge.textContent = 'Storage: Ready';
+        storageBadge.className = 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
+      }
+
+      if (fromUserTap) showToast('Permission requests completed!');
+    }
+
+    document.getElementById('grantPermsBtn').addEventListener('click', () => {
+      requestAllAppPermissions(true);
+    });
+
+    document.getElementById('detectGpsBtn').addEventListener('click', () => {
+      detectGPS(true);
+    });
+
+    document.getElementById('demoGpsBtn').addEventListener('click', () => {
+      applyCoordinates(22.719568, 75.857726, 'Sample GPS');
+      showToast('Sample GPS loaded (Indore)!');
+    });
+
+    function drawMapOverlayAndSave(canvas, ctx, latNum, lngNum, hasValidCoords) {
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Red location pin in center
+      const px = w / 2;
+      const py = h / 2 - 6;
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(px, py + 16, 10, 4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(px, py - 8, 13, Math.PI * 0.85, Math.PI * 2.15);
+      ctx.lineTo(px, py + 15);
+      ctx.closePath();
+      ctx.fillStyle = '#dc2626';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(px, py - 8, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#7f1d1d';
+      ctx.fill();
+
+      // Bottom coordinate bar
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+      ctx.fillRect(0, h - 36, w, 36);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '600 13px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const label = hasValidCoords
+        ? `Lat: ${latNum.toFixed(6)}   |   Lng: ${lngNum.toFixed(6)}`
+        : 'Waiting for GPS Latitude & Longitude...';
+      ctx.fillText(label, 12, h - 18);
+      ctx.restore();
+
+      try {
+        currentPhotos['map_gps_location'] = canvas.toDataURL('image/jpeg', 0.85);
+      } catch (e) {
+        // Ignore tainted canvas if cross-origin tile blocks export
+      }
+    }
+
+    function drawFallbackMapGrid(ctx, w, h) {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(0, 0, w, h);
+      // Park patches
+      ctx.fillStyle = '#bbf7d0';
+      ctx.fillRect(w * 0.08, h * 0.14, w * 0.22, h * 0.24);
+      ctx.fillRect(w * 0.68, h * 0.56, w * 0.24, h * 0.22);
+      // Grid lines
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      for (let gx = 40; gx < w; gx += 40) {
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
+      }
+      for (let gy = 40; gy < h; gy += 40) {
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+      }
+      // Roads
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.48); ctx.lineTo(w, h * 0.52);
+      ctx.moveTo(w * 0.48, 0); ctx.lineTo(w * 0.52, h);
+      ctx.stroke();
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.15, 0); ctx.lineTo(w * 0.85, h);
+      ctx.stroke();
+    }
+
+    function updateMapLink() {
+      const rawLat = document.getElementById('latitude').value.trim();
+      const rawLng = document.getElementById('longitude').value.trim();
+      const latNum = parseFloat(rawLat);
+      const lngNum = parseFloat(rawLng);
+      const hasValid = !isNaN(latNum) && !isNaN(lngNum);
+
+      const textEl = document.getElementById('mapCoordsText');
+      if (textEl) {
+        textEl.textContent = hasValid
+          ? `Lat: ${latNum.toFixed(6)} • Lng: ${lngNum.toFixed(6)}`
+          : 'Lat: 0.000000 • Lng: 0.000000';
+      }
+
+      const canvas = document.getElementById('gpsMapCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      drawFallbackMapGrid(ctx, w, h);
+      drawMapOverlayAndSave(canvas, ctx, latNum, lngNum, hasValid);
+
+      if (hasValid) {
+        const z = 17;
+        const n = Math.pow(2, z);
+        const pxFloat = ((lngNum + 180) / 360) * n * 256;
+        const latRad = (latNum * Math.PI) / 180;
+        const pyFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n * 256;
+
+        const centerTx = Math.floor(pxFloat / 256);
+        const centerTy = Math.floor(pyFloat / 256);
+
+        const tiles = [];
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const tx = centerTx + dx;
+            const ty = centerTy + dy;
+            const drawX = (w / 2) + (tx * 256 - pxFloat);
+            const drawY = (h / 2) + (ty * 256 - pyFloat);
+            if (drawX + 256 < 0 || drawX > w || drawY + 256 < 0 || drawY > h) continue;
+            tiles.push({ tx, ty, drawX, drawY });
+          }
+        }
+
+        let loadedCount = 0;
+        tiles.forEach((t) => {
+          const tileImg = new Image();
+          tileImg.crossOrigin = 'anonymous';
+          tileImg.onload = () => {
+            t.img = tileImg;
+            loadedCount++;
+            if (loadedCount === tiles.length) {
+              tiles.forEach((item) => {
+                if (item.img) ctx.drawImage(item.img, item.drawX, item.drawY, 256, 256);
+              });
+              // Subtle Satellite badge
+              ctx.save();
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+              ctx.fillRect(10, 10, 86, 22);
+              ctx.fillStyle = '#e2e8f0';
+              ctx.font = '600 11px Inter, sans-serif';
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('Satellite View', 18, 21);
+              ctx.restore();
+              drawMapOverlayAndSave(canvas, ctx, latNum, lngNum, true);
+            }
+          };
+          tileImg.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${t.ty}/${t.tx}`;
+        });
+      }
+    }
+
+    document.getElementById('latitude').addEventListener('input', updateMapLink);
+    document.getElementById('longitude').addEventListener('input', updateMapLink);
+
+    function wireNotAvailableToggle(checkboxId, fieldIds) {
+      const cb = document.getElementById(checkboxId);
+      if (!cb) return;
+      cb.addEventListener('change', () => {
+        fieldIds.forEach((fid) => {
+          const el = document.getElementById(fid);
+          if (!el) return;
+          if (cb.checked) {
+            el.value = 'Not Available';
+            el.readOnly = true;
+            el.classList.add('bg-slate-100', 'text-slate-500');
+          } else {
+            el.value = '';
+            el.readOnly = false;
+            el.classList.remove('bg-slate-100', 'text-slate-500');
+          }
+        });
+      });
+    }
+
+    wireNotAvailableToggle('dimDocNA', ['dimDocN', 'dimDocS', 'dimDocE', 'dimDocW']);
+    wireNotAvailableToggle('bndDocNA', ['bndDocN', 'bndDocS', 'bndDocE', 'bndDocW']);
+
+    const occupantEl = document.getElementById('occupantStatus');
+    const tenantEl = document.getElementById('tenantNames');
+    function syncTenantField() {
+      if (!occupantEl || !tenantEl) return;
+      const val = occupantEl.value;
+      const isRented = val === 'Rented Residential' || val === 'Rented Commercial';
+      if (isRented) {
+        if (tenantEl.value === 'Not Available') tenantEl.value = '';
+        tenantEl.readOnly = false;
+        tenantEl.classList.remove('bg-slate-100', 'text-slate-500');
+      } else {
+        tenantEl.value = 'Not Available';
+        tenantEl.readOnly = true;
+        tenantEl.classList.add('bg-slate-100', 'text-slate-500');
+      }
+    }
+    if (occupantEl) {
+      occupantEl.addEventListener('change', syncTenantField);
+      syncTenantField();
+    }
+
+    const elecStatusEl = document.getElementById('electricityStatus');
+    const elecFieldIds = ['elecBpNo', 'elecOwnerName', 'relationElecOwnerWithApplicant', 'elecMeterBill', 'elecMeterActual'];
+    if (elecStatusEl) {
+      elecStatusEl.addEventListener('change', () => {
+        const isNA = elecStatusEl.value === 'Not Available' || elecStatusEl.value === 'Ekal Batti';
+        elecFieldIds.forEach((fid) => {
+          const el = document.getElementById(fid);
+          if (!el) return;
+          if (isNA) {
+            el.value = 'Not Available';
+            el.readOnly = true;
+            el.classList.add('bg-slate-100', 'text-slate-500');
+          } else {
+            el.value = '';
+            el.readOnly = false;
+            el.classList.remove('bg-slate-100', 'text-slate-500');
+          }
+        });
+      });
+    }
+
+    function renderSlotCard(slot) {
+      const imgData = currentPhotos[slot.id];
+      const isDoc = slot.group === 'doc';
+      const isMulti = !!slot.multiple;
+      const imgs = Array.isArray(imgData) ? imgData : (imgData ? [imgData] : []);
+      const hasAny = imgs.length > 0;
+      const reqBadge = slot.required
+        ? '<span class="text-rose-500 font-bold">*</span>'
+        : '<span class="text-[10px] font-medium text-slate-400">(Optional)</span>';
+
+      let previewHtml = '';
+      if (hasAny && isMulti) {
+        previewHtml = `<div class="grid grid-cols-2 gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-200">
+          ${imgs.map((src, i) => `
+            <div class="relative rounded overflow-hidden bg-black">
+              <img src="${src}" alt="${escapeHtml(slot.label)} ${i + 1}" class="w-full h-24 object-contain" />
+              <span class="absolute bottom-1 left-1 bg-black/70 text-white text-[10px] px-1.5 rounded">${i + 1}</span>
+            </div>
+          `).join('')}
+        </div>`;
+      } else if (hasAny) {
+        previewHtml = `<div class="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-900">
+          <img src="${imgs[0]}" alt="${escapeHtml(slot.label)}" class="w-full max-h-60 object-contain mx-auto" />
+          
+        </div>`;
+      } else {
+        previewHtml = `<div class="h-24 rounded-lg border border-dashed border-slate-300 bg-white flex items-center justify-center text-[11px] text-slate-400">
+          ${isDoc ? 'No document uploaded' : 'No GPS photo yet'}
+        </div>`;
+      }
+
+      let buttonsHtml = '';
+      if (isDoc) {
+        buttonsHtml = `
+          <div class="flex flex-wrap items-center gap-1.5">
+            <label class="flex-1 text-center text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-2 rounded-lg cursor-pointer transition-colors">
+              Click Photo
+              <input type="file" accept="image/*" capture="environment" data-photo-slot="${slot.id}" class="hidden" />
+            </label>
+            <label class="flex-1 text-center text-xs font-semibold bg-slate-700 hover:bg-slate-800 text-white py-2 px-2 rounded-lg cursor-pointer transition-colors">
+              ${isMulti ? 'Upload Multiple' : 'Upload Photo'}
+              <input type="file" accept="image/*" ${isMulti ? 'multiple' : ''} data-photo-slot="${slot.id}" class="hidden" />
+            </label>
+            ${hasAny ? `<button type="button" data-remove-photo="${slot.id}" class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2.5 py-2 rounded-lg border border-rose-200 cursor-pointer">Clear</button>` : ''}
+          </div>
+        `;
+      } else {
+        const captureMode = slot.selfie ? 'user' : 'environment';
+        buttonsHtml = `
+          <div class="flex items-center gap-2">
+            <label class="flex-1 text-center text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-lg cursor-pointer transition-colors">
+              ${hasAny ? 'Retake GPS Photo' : 'Click GPS Photo'}
+              <input type="file" accept="image/*" capture="${captureMode}" data-photo-slot="${slot.id}" class="hidden" />
+            </label>
+            ${hasAny ? `<button type="button" data-remove-photo="${slot.id}" class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2.5 py-2 rounded-lg border border-rose-200 cursor-pointer">Remove</button>` : ''}
+          </div>
+        `;
+      }
+
+      return `
+        <div id="card-${slot.id}" class="border border-slate-200 rounded-xl p-3 bg-slate-50/60 flex flex-col justify-between gap-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-semibold text-slate-800 leading-snug">${escapeHtml(slot.label)} ${reqBadge}</p>
+            ${isMulti && hasAny ? `<span class="text-[10px] font-semibold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full shrink-0">${imgs.length} pages</span>` : ''}
+          </div>
+          ${previewHtml}
+          ${buttonsHtml}
+        </div>
+      `;
+    }
+
+    function renderPhotoSlots() {
+      const propGrid = document.getElementById('photoSlotsGrid');
+      const docGrid = document.getElementById('docSlotsGrid');
+      const badge = document.getElementById('photoCounterBadge');
+
+      propGrid.innerHTML = PHOTO_SLOTS.filter((s) => s.group === 'property').map(renderSlotCard).join('');
+      docGrid.innerHTML = PHOTO_SLOTS.filter((s) => s.group === 'doc').map(renderSlotCard).join('');
+
+      const count = PHOTO_SLOTS.filter((slot) => {
+        const val = currentPhotos[slot.id];
+        return Array.isArray(val) ? val.length > 0 : !!val;
+      }).length;
+      badge.textContent = `${count} / ${PHOTO_SLOTS.length}`;
+    }
+
+    function getLiveCoordsForPhoto() {
+      return new Promise((resolve) => {
+        const fallbackLat = parseFloat(document.getElementById('latitude').value.trim());
+        const fallbackLng = parseFloat(document.getElementById('longitude').value.trim());
+        const fallback = {
+          lat: !isNaN(fallbackLat) ? fallbackLat : 0,
+          lng: !isNaN(fallbackLng) ? fallbackLng : 0,
+          hasValid: !isNaN(fallbackLat) && !isNaN(fallbackLng)
+        };
+
+        if (!navigator.geolocation) {
+          resolve(fallback);
+          return;
+        }
+
+        let settled = false;
+        const done = (val) => { if (!settled) { settled = true; resolve(val); } };
+        const hardTimer = setTimeout(() => done(fallback), 2000);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            clearTimeout(hardTimer);
+            done({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              hasValid: true
+            });
+          },
+          () => {
+            clearTimeout(hardTimer);
+            done(fallback);
+          },
+          { enableHighAccuracy: true, timeout: 1800, maximumAge: 15000 }
+        );
+      });
+    }
+
+    async function reverseGeocode(lat, lng) {
+      const formAddr = document.getElementById('address') ? document.getElementById('address').value.trim() : '';
+      if (!lat && !lng) return formAddr || 'Site Address';
+
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 1800) : null;
+      const sig = controller ? { signal: controller.signal } : {};
+
+      try {
+        const res = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}&localityLanguage=en`,
+          sig
+        );
+        if (timer) clearTimeout(timer);
+        if (res.ok) {
+          const data = await res.json();
+          const parts = [
+            data.locality,
+            data.city && data.city !== data.locality ? data.city : '',
+            data.principalSubdivision,
+            data.postcode,
+            data.countryName
+          ].filter(Boolean);
+          if (parts.length > 0) return parts.join(', ');
+        }
+      } catch (e) {
+        if (timer) clearTimeout(timer);
+      }
+      return formAddr || 'Site Address';
+    }
+
+    function loadSatelliteMiniCanvas(latNum, lngNum, hasValid) {
+      return new Promise((resolve) => {
+        const mw = 220;
+        const mh = 180;
+        const mini = document.createElement('canvas');
+        mini.width = mw;
+        mini.height = mh;
+        const mctx = mini.getContext('2d');
+
+        // Dark satellite-style fallback background
+        mctx.fillStyle = '#1e293b';
+        mctx.fillRect(0, 0, mw, mh);
+        mctx.fillStyle = 'rgba(34, 84, 61, 0.7)';
+        mctx.fillRect(mw * 0.1, mh * 0.5, mw * 0.35, mh * 0.3);
+        mctx.strokeStyle = 'rgba(226, 232, 240, 0.65)';
+        mctx.lineWidth = 3;
+        mctx.beginPath();
+        mctx.moveTo(0, mh * 0.38); mctx.lineTo(mw, mh * 0.48);
+        mctx.moveTo(mw * 0.45, 0); mctx.lineTo(mw * 0.38, mh);
+        mctx.stroke();
+
+        if (!hasValid) {
+          resolve(mini);
+          return;
+        }
+
+        const z = 17;
+        const n = Math.pow(2, z);
+        const pxFloat = ((lngNum + 180) / 360) * n * 256;
+        const latRad = (latNum * Math.PI) / 180;
+        const pyFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n * 256;
+
+        const centerTx = Math.floor(pxFloat / 256);
+        const centerTy = Math.floor(pyFloat / 256);
+        const tiles = [];
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const tx = centerTx + dx;
+            const ty = centerTy + dy;
+            const drawX = (mw / 2) + (tx * 256 - pxFloat);
+            const drawY = (mh / 2) + (ty * 256 - pyFloat);
+            if (drawX + 256 < 0 || drawX > mw || drawY + 256 < 0 || drawY > mh) continue;
+            tiles.push({ tx, ty, drawX, drawY });
+          }
+        }
+
+        let done = false;
+        let settled = 0;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          try {
+            mini.toDataURL('image/png');
+            resolve(mini);
+          } catch (taintErr) {
+            // If cross-origin tile tainted canvas, redraw clean untainted satellite-style fallback
+            mctx.fillStyle = '#1e293b';
+            mctx.fillRect(0, 0, mw, mh);
+            mctx.fillStyle = 'rgba(34, 84, 61, 0.75)';
+            mctx.fillRect(mw * 0.1, mh * 0.5, mw * 0.35, mh * 0.3);
+            mctx.strokeStyle = 'rgba(226, 232, 240, 0.65)';
+            mctx.lineWidth = 3;
+            mctx.beginPath();
+            mctx.moveTo(0, mh * 0.38); mctx.lineTo(mw, mh * 0.48);
+            mctx.moveTo(mw * 0.45, 0); mctx.lineTo(mw * 0.38, mh);
+            mctx.stroke();
+            resolve(mini);
+          }
+        };
+        const timer = setTimeout(finish, 1500);
+
+        tiles.forEach((t) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            mctx.drawImage(img, t.drawX, t.drawY, 256, 256);
+            settled++;
+            if (settled >= tiles.length) {
+              clearTimeout(timer);
+              finish();
+            }
+          };
+          img.onerror = () => {
+            settled++;
+            if (settled >= tiles.length) {
+              clearTimeout(timer);
+              finish();
+            }
+          };
+          img.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${t.ty}/${t.tx}`;
+        });
+      });
+    }
+
+    function drawCompass(ctx, cx, cy, r, headingDeg) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((-(headingDeg || 0) * Math.PI) / 180);
+
+      // Outer grey ring
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.fill();
+      ctx.lineWidth = Math.max(4, r * 0.18);
+      ctx.strokeStyle = 'rgba(85, 92, 102, 0.85)';
+      ctx.stroke();
+
+      // N E S W letters on ring
+      const lblSize = Math.max(8, Math.round(r * 0.28));
+      ctx.font = `700 ${lblSize}px Inter, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('N', 0, -r);
+      ctx.fillText('S', 0, r);
+      ctx.fillText('E', r, 0);
+      ctx.fillText('W', -r, 0);
+
+      // Cyan pointer needle pointing North
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.62);
+      ctx.lineTo(-r * 0.16, r * 0.48);
+      ctx.lineTo(r * 0.16, r * 0.48);
+      ctx.closePath();
+      ctx.fillStyle = '#06b6d4';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawMiniMap(ctx, x, y, mw, mh, miniCanvas) {
+      ctx.save();
+      if (miniCanvas) {
+        ctx.drawImage(miniCanvas, x, y, mw, mh);
+      }
+
+      // Crisp white border around mini-map
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, mw, mh);
+
+      // Red Google-style location pin in center
+      const px = x + mw * 0.5;
+      const py = y + mh * 0.48;
+      const pr = Math.max(6, mw * 0.075);
+      ctx.beginPath();
+      ctx.arc(px, py - pr * 0.6, pr, Math.PI * 0.85, Math.PI * 2.15);
+      ctx.lineTo(px, py + pr * 1.1);
+      ctx.closePath();
+      ctx.fillStyle = '#dc2626';
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px, py - pr * 0.6, pr * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = '#7f1d1d';
+      ctx.fill();
+
+      // Tiny "Satellite" badge
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+      ctx.fillRect(x + 3, y + mh - 16, 48, 13);
+      ctx.font = `700 ${Math.max(8, Math.round(mw * 0.065))}px Inter, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Satellite', x + 6, y + mh - 9);
+      ctx.restore();
+    }
+
+    function wrapTextLines(ctx, text, maxWidth) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let line = '';
+      for (const word of words) {
+        const test = line ? line + ' ' + word : word;
+        if (ctx.measureText(test).width > maxWidth && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) lines.push(line);
+      return lines.slice(0, 3);
+    }
+
+    function processImageFile(fileOrDataUrl, applyGpsStamp, liveCoords, miniCanvas, detectedAddress) {
+      return new Promise((resolve, reject) => {
+        let objUrlToRevoke = null;
+        const img = new Image();
+        img.onload = () => {
+          if (objUrlToRevoke) URL.revokeObjectURL(objUrlToRevoke);
+          try {
+            const maxW = 1000;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            if (!applyGpsStamp) {
+              resolve(canvas.toDataURL('image/jpeg', 0.8));
+              return;
+            }
+
+            // 1. Top-left Compass
+            const compassR = Math.max(22, Math.round(w * 0.055));
+            drawCompass(ctx, compassR + Math.round(w * 0.025), compassR + Math.round(w * 0.025), compassR, currentCompassHeading);
+
+            // 2. Bottom-left Satellite Mini-Map for this photo's exact GPS
+            const mapW = Math.max(95, Math.round(w * 0.22));
+            const mapH = Math.round(mapW * 0.82);
+            const margin = Math.round(w * 0.018);
+            try {
+              drawMiniMap(ctx, margin, h - mapH - margin, mapW, mapH, miniCanvas);
+            } catch (miniErr) {
+              drawMiniMap(ctx, margin, h - mapH - margin, mapW, mapH, null);
+            }
+
+            // 3. Bottom-right Date, Live Lat/Long & Address
+            const latNum = liveCoords ? liveCoords.lat : 0;
+            const lngNum = liveCoords ? liveCoords.lng : 0;
+            const hasValid = liveCoords && liveCoords.hasValid;
+            const latStr = hasValid ? `${Math.abs(latNum).toFixed(6)}${latNum >= 0 ? 'N' : 'S'}` : '0.000000N';
+            const lngStr = hasValid ? `${Math.abs(lngNum).toFixed(6)}${lngNum >= 0 ? 'E' : 'W'}` : '0.000000E';
+
+            const now = new Date();
+            const datePart = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+            const timePart = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
+            const dateTimeStr = `${datePart} ${timePart}`;
+
+            const addressVal = detectedAddress || (document.getElementById('address').value.trim()) || 'Site Address';
+            const fontSize = Math.max(13, Math.round(w * 0.024));
+            ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+
+            const maxTextW = w - (mapW + margin * 3);
+            const addrLines = wrapTextLines(ctx, addressVal, maxTextW);
+            const bearingLine = hasCompassSensor ? formatBearing(currentCompassHeading) : '';
+            const lines = bearingLine ? [dateTimeStr, `${latStr} ${lngStr}`, bearingLine, ...addrLines] : [dateTimeStr, `${latStr} ${lngStr}`, ...addrLines];
+
+            const lineHeight = Math.round(fontSize * 1.28);
+            const startY = h - margin - (lines.length - 1) * lineHeight;
+
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.22));
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillStyle = '#ffffff';
+
+            lines.forEach((line, idx) => {
+              const yPos = startY + idx * lineHeight;
+              ctx.strokeText(line, w - margin, yPos);
+              ctx.fillText(line, w - margin, yPos);
+            });
+
+            resolve(canvas.toDataURL('image/jpeg', 0.78));
+          } catch (drawErr) {
+            reject(drawErr);
+          }
+        };
+        img.onerror = (e) => {
+          if (objUrlToRevoke) URL.revokeObjectURL(objUrlToRevoke);
+          reject(new Error('Image load failed'));
+        };
+        if (typeof fileOrDataUrl === 'string') {
+          img.src = fileOrDataUrl;
+        } else {
+          objUrlToRevoke = URL.createObjectURL(fileOrDataUrl);
+          img.src = objUrlToRevoke;
+        }
+      });
+    }
+
+    document.getElementById('sec7').addEventListener('change', async (e) => {
+      const input = e.target.closest('[data-photo-slot]');
+      if (!input || !input.files || !input.files[0]) return;
+      const slotId = input.getAttribute('data-photo-slot');
+      const slot = PHOTO_SLOTS.find((x) => x.id === slotId);
+      const isDoc = slot && slot.group === 'doc';
+      const isMulti = slot && slot.multiple;
+      try {
+        if (isDoc) {
+          const files = Array.from(input.files);
+          const processedList = [];
+          for (const f of files) {
+            const url = await processImageFile(f, false, null, null, '');
+            processedList.push(url);
+          }
+          if (isMulti) {
+            const existing = Array.isArray(currentPhotos[slotId]) ? currentPhotos[slotId] : [];
+            currentPhotos[slotId] = [...existing, ...processedList];
+          } else {
+            currentPhotos[slotId] = processedList[0];
+          }
+          saveDraft();
+          renderPhotoSlots();
+          showToast(isMulti ? `${processedList.length} page(s) added to Property Paper!` : 'Document photo saved!');
+        } else {
+          const pickedFile = input.files[0];
+          showToast('Adding GPS stamp...');
+
+          const liveCoords = await getLiveCoordsForPhoto();
+          const [miniCanvas, detectedAddr] = await Promise.all([
+            loadSatelliteMiniCanvas(liveCoords.lat, liveCoords.lng, liveCoords.hasValid),
+            liveCoords.hasValid ? reverseGeocode(liveCoords.lat, liveCoords.lng) : Promise.resolve('')
+          ]);
+          const processedUrl = await processImageFile(pickedFile, true, liveCoords, miniCanvas, detectedAddr);
+          currentPhotos[slotId] = processedUrl;
+          const stampTime = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          savePhotoToDevice(processedUrl, `${slotId}_${stampTime}.jpg`);
+          saveDraft();
+          renderPhotoSlots();
+          showToast(
+            liveCoords.hasValid
+              ? `GPS Photo saved (${liveCoords.lat.toFixed(6)}, ${liveCoords.lng.toFixed(6)})`
+              : 'GPS Photo saved!'
+          );
+        }
+      } catch (err) {
+        showToast('Stamp error: ' + (err && err.message ? err.message : 'Try again'));
+      }
+    });
+
+    document.getElementById('sec7').addEventListener('click', (e) => {
+      const saveBtn = e.target.closest('[data-save-photo]');
+      if (saveBtn) {
+        const slotId = saveBtn.getAttribute('data-save-photo');
+        if (currentPhotos[slotId]) {
+          savePhotoToDevice(currentPhotos[slotId], `${slotId}.jpg`);
+          showToast('Photo saved to Downloads!');
+        }
+        return;
+      }
+
+      const remBtn = e.target.closest('[data-remove-photo]');
+      if (!remBtn) return;
+      const slotId = remBtn.getAttribute('data-remove-photo');
+      delete currentPhotos[slotId];
+      saveDraft();
+      renderPhotoSlots();
+      showToast('Photo removed');
+    });
+
+    const FIELD_LABELS = {
+      engineerName: 'Name of Site Visit Engineer',
+      engineerMobile: 'Mobile No. of Site Visit Engineer',
+      visitDate: 'Visit Date',
+      bankName: 'Bank Name',
+      branchName: 'Branch Name',
+      customerName: 'Name of Customer / Co-Applicant',
+      ownershipDoc: 'Owner Name as per Document',
+      propertyDocName: 'Name of Property Document Provided',
+      personMet: 'Person Met at Site',
+      relationWithOwner: 'Relation of Person Met with Applicant',
+      address: 'Address',
+      landmark: 'Landmark',
+      developmentPct: 'Development % of this Area',
+      latitude: 'Latitude',
+      longitude: 'Longitude',
+      roadType: 'Road Type',
+      roadWidth: 'Road Width',
+      roadOwnership: 'Government / Private Road',
+      distRailway: 'Distance of Railway Station (KM)',
+      distBus: 'Distance of Bus Stand (KM)',
+      distHospital: 'Distance of Hospital (KM)',
+      distSchool: 'Distance of School (KM)',
+      distMarket: 'Distance of Market (KM)',
+      distIndustrial: 'Distance of Industrial Unit (KM)',
+      distMasjid: 'Distance of Masjid (KM)',
+      landAreaDoc: 'Land Area in Document',
+      landAreaDocUnit: 'Land Area in Document Unit',
+      landAreaActual: 'Actual Measured Total Land Area (in Sq.ft.)',
+      gfArea: 'Ground Floor Buildup Area (in Sq.ft.)',
+      ffArea: 'First Floor Buildup Area (in Sq.ft.)',
+      sfArea: 'Second Floor Buildup Area (in Sq.ft.)',
+      constructionAge: 'Age of Construction (Years)',
+      diversionStatus: 'Diversion Status',
+      propertyUsage: 'Usage of the Property',
+      situatedWithin: 'Property Situated Within',
+      occupantStatus: 'Occupant Status',
+      tenantNames: 'Name of the Tenants (if rented)',
+      plotDemarcated: 'Plot Demarcated With',
+      identifiedThrough: 'Property Identified Through',
+      waterAvailability: 'Availability of Water',
+      elecBpNo: 'Electricity - BP Number',
+      elecOwnerName: 'Electricity - Name of Owner',
+      relationElecOwnerWithApplicant: 'Relation of Electricity Bill Owner with Applicant',
+      elecMeterBill: 'Electricity - Meter No. on Bill',
+      elecMeterActual: 'Electricity - Meter No. on Meter',
+      dimDocN: 'Dimension as per Document - North',
+      dimDocS: 'Dimension as per Document - South',
+      dimDocE: 'Dimension as per Document - East',
+      dimDocW: 'Dimension as per Document - West',
+      dimActN: 'Dimension as per Actual - North',
+      dimActS: 'Dimension as per Actual - South',
+      dimActE: 'Dimension as per Actual - East',
+      dimActW: 'Dimension as per Actual - West',
+      bndDocN: 'Boundaries as per Document - North',
+      bndDocS: 'Boundaries as per Document - South',
+      bndDocE: 'Boundaries as per Document - East',
+      bndDocW: 'Boundaries as per Document - West',
+      bndActN: 'Boundaries as per Actual - North',
+      bndActS: 'Boundaries as per Actual - South',
+      bndActE: 'Boundaries as per Actual - East',
+      bndActW: 'Boundaries as per Actual - West',
+      boundaryMismatch: 'Which Boundary Not Matching & Why',
+      structureType: 'Type of Structure',
+      workCompletedPct: '% of Work Completed as on Date',
+      internalComposition: 'Internal Composition',
+      nearbyHazards: 'Nearby Nala / Canal / HT / Railway / Gas Line & Distance',
+      landCostPerDismil: 'Land Cost per Dismil',
+      constructionCost: 'Construction Cost (Max 1000)'
+    };
+
+    let lastGeneratedBlob = null;
+    let lastGeneratedFilename = 'Visit_Report.xlsx';
+
+    function triggerBlobDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    async function buildExcelBlob(record) {
+      if (typeof ExcelJS === 'undefined') {
+        throw new Error('ExcelJS library not loaded');
+      }
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = record.engineerName || 'Field Visit App';
+      workbook.created = new Date();
+
+      // Sheet 1: Property Valuation Data
+      const sheet1 = workbook.addWorksheet('Valuation Report');
+      sheet1.columns = [
+        { header: 'Field', key: 'field', width: 42 },
+        { header: 'Details', key: 'value', width: 55 }
+      ];
+      sheet1.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      sheet1.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } };
+
+      const cleanCell = (val) => String(val || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+      FIELD_IDS.forEach((id) => {
+        sheet1.addRow({
+          field: FIELD_LABELS[id] || id,
+          value: cleanCell(record[id])
+        });
+      });
+
+      // Sheet 2: Photographs & Maps
+      const sheet2 = workbook.addWorksheet('Property Photographs');
+      sheet2.columns = [
+        { width: 46 },
+        { width: 46 }
+      ];
+
+      sheet2.addRow(['Property Photographs', `Address: ${record.address || ''}`]);
+      sheet2.getRow(1).font = { bold: true, size: 12 };
+
+      const allItems = [
+        ...PHOTO_SLOTS,
+        { id: 'map_gps_location', label: 'Google Map Location (Satellite GPS)' }
+      ];
+
+      const photosObj = record.photos || {};
+      let rowIndex = 3;
+
+      for (let i = 0; i < allItems.length; i += 2) {
+        const leftItem = allItems[i];
+        const rightItem = allItems[i + 1];
+
+        const labelRow = sheet2.getRow(rowIndex);
+        labelRow.getCell(1).value = leftItem ? leftItem.label : '';
+        labelRow.getCell(2).value = rightItem ? rightItem.label : '';
+        labelRow.font = { bold: true };
+        labelRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        labelRow.height = 24;
+
+        const imgRow = sheet2.getRow(rowIndex + 1);
+        imgRow.height = 220;
+
+        [leftItem, rightItem].forEach((item, colIdx) => {
+          if (!item) return;
+          const rawPhoto = photosObj[item.id];
+          const dataUrl = Array.isArray(rawPhoto) ? rawPhoto[0] : rawPhoto;
+          if (dataUrl && dataUrl.startsWith('data:image')) {
+            try {
+              const ext = dataUrl.includes('image/png') ? 'png' : 'jpeg';
+              const base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+              const imgId = workbook.addImage({ base64: base64Clean, extension: ext });
+              sheet2.addImage(imgId, {
+                tl: { col: colIdx, row: rowIndex },
+                br: { col: colIdx + 1, row: rowIndex + 1 },
+                editAs: 'twoCell'
+              });
+            } catch (imgErr) {
+              imgRow.getCell(colIdx + 1).value = 'Photo attached error';
+            }
+          } else {
+            imgRow.getCell(colIdx + 1).value = 'NA';
+            imgRow.getCell(colIdx + 1).alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        });
+
+        rowIndex += 2;
+      }
+
+      const propPaperList = Array.isArray(photosObj['doc_property_paper']) ? photosObj['doc_property_paper'] : [];
+      if (propPaperList.length > 1) {
+        for (let p = 1; p < propPaperList.length; p += 2) {
+          const lr = sheet2.getRow(rowIndex);
+          lr.getCell(1).value = `Property Paper (Page ${p + 1})`;
+          lr.getCell(2).value = propPaperList[p + 1] ? `Property Paper (Page ${p + 2})` : '';
+          lr.font = { bold: true };
+          lr.alignment = { horizontal: 'center', vertical: 'middle' };
+          lr.height = 24;
+          const ir = sheet2.getRow(rowIndex + 1);
+          ir.height = 220;
+          [propPaperList[p], propPaperList[p + 1]].forEach((pUrl, cIdx) => {
+            if (pUrl && pUrl.startsWith('data:image')) {
+              try {
+                const b64 = pUrl.includes(',') ? pUrl.split(',')[1] : pUrl;
+                const iId = workbook.addImage({ base64: b64, extension: 'jpeg' });
+                sheet2.addImage(iId, {
+                  tl: { col: cIdx, row: rowIndex },
+                  br: { col: cIdx + 1, row: rowIndex + 1 },
+                  editAs: 'twoCell'
+                });
+              } catch (e) {}
+            }
+          });
+          rowIndex += 2;
+        }
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      return new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+    }
+
+    async function exportAndShareEntry(record) {
+      try {
+        const blob = await buildExcelBlob(record);
+        const safeName = (record.customerName || 'Applicant').trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '') || 'Applicant';
+        const filename = `${safeName}.xlsx`;
+        lastGeneratedBlob = blob;
+        lastGeneratedFilename = filename;
+
+        const summaryText = `Property Visit Report%0ACustomer: ${encodeURIComponent(record.customerName || '')}%0ABank/Branch: ${encodeURIComponent((record.bankName || '') + ' - ' + (record.branchName || ''))}%0AEngineer: ${encodeURIComponent((record.engineerName || '') + ' (' + (record.engineerMobile || '') + ')')}%0AGPS: ${encodeURIComponent((record.latitude || '') + ', ' + (record.longitude || ''))}%0AAddress: ${encodeURIComponent(record.address || '')}`;
+
+        const file = new File([blob], filename, {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `Visit Report - ${record.customerName}`,
+              text: `Property Visit Excel Report for ${record.customerName} (${record.branchName})`
+            });
+            showToast('Excel shared successfully!');
+            return;
+          } catch (shareErr) {
+            if (shareErr && shareErr.name === 'AbortError') return;
+          }
+        }
+
+        // Fallback (Desktop / WebIntoApp WebView): trigger download with Applicant Name + native whatsapp:// scheme
+        triggerBlobDownload(blob, filename);
+        const sizeKb = Math.max(1, Math.round(blob.size / 1024));
+        document.getElementById('shareModalSubtitle').textContent = `${filename} (${sizeKb} KB) ready!`;
+        document.getElementById('modalWhatsappBtn').href = `whatsapp://send?phone=917999551942&text=${summaryText}`;
+
+        const dlLink = document.getElementById('modalDownloadLink');
+        if (dlLink) {
+          dlLink.download = filename;
+          dlLink.href = URL.createObjectURL(blob);
+        }
+
+        document.getElementById('shareModal').classList.remove('hidden');
+        showToast(`Excel saved as ${filename} (${sizeKb} KB)!`);
+      } catch (err) {
+        showToast('Excel error: ' + (err && err.message ? err.message : 'Check internet for ExcelJS'));
+      }
+    }
+
+    document.getElementById('closeShareModal').addEventListener('click', () => {
+      document.getElementById('shareModal').classList.add('hidden');
+    });
+
+    updateMapLink();
+    setDefaultDate();
+    loadDraft();
+    renderPhotoSlots();
+    detectGPS(false);
+    loadEntries();
+    renderEntries();
+
+    const entryFormEl = document.getElementById('entryForm');
+    entryFormEl.addEventListener('input', saveDraft);
+    entryFormEl.addEventListener('change', saveDraft);
+
+    document.getElementById('newEntryBtn').addEventListener('click', () => {
+      const keepEngName = document.getElementById('engineerName') ? document.getElementById('engineerName').value : '';
+      const keepEngMob = document.getElementById('engineerMobile') ? document.getElementById('engineerMobile').value : '';
+      clearDraft();
+      entryFormEl.reset();
+      if (document.getElementById('engineerName') && keepEngName) document.getElementById('engineerName').value = keepEngName;
+      if (document.getElementById('engineerMobile') && keepEngMob) document.getElementById('engineerMobile').value = keepEngMob;
+      if (typeof setDefaultDate === 'function') setDefaultDate();
+      if (typeof syncTenantField === 'function') syncTenantField();
+      currentPhotos = {};
+      renderPhotoSlots();
+      showToast('New entry started!');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
