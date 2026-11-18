@@ -1864,19 +1864,39 @@
         img.onload = () => {
           if (objUrlToRevoke) URL.revokeObjectURL(objUrlToRevoke);
           try {
-            const maxW = 1000;
-            const scale = img.width > maxW ? maxW / img.width : 1;
-            const w = Math.round(img.width * scale);
-            const h = Math.round(img.height * scale);
-
+            let w, h;
             const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
+
+            if (applyGpsStamp) {
+              // Force exact 4:3 (1000 x 750) for all GPS property photos
+              w = 1600;
+              h = 1200;
+              canvas.width = w;
+              canvas.height = h;
+              const targetRatio = w / h;
+              const srcRatio = img.width / img.height;
+              let sx = 0, sy = 0, sw = img.width, sh = img.height;
+              if (srcRatio > targetRatio) {
+                sw = Math.round(img.height * targetRatio);
+                sx = Math.round((img.width - sw) / 2);
+              } else if (srcRatio < targetRatio) {
+                sh = Math.round(img.width / targetRatio);
+                sy = Math.round((img.height - sh) / 2);
+              }
+              ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+            } else {
+              const maxW = 1600;
+              const scale = img.width > maxW ? maxW / img.width : 1;
+              w = Math.round(img.width * scale);
+              h = Math.round(img.height * scale);
+              canvas.width = w;
+              canvas.height = h;
+              ctx.drawImage(img, 0, 0, w, h);
+            }
 
             if (!applyGpsStamp) {
-              resolve(canvas.toDataURL('image/jpeg', 0.8));
+              resolve(canvas.toDataURL('image/jpeg', 0.90));
               return;
             }
 
@@ -1931,7 +1951,7 @@
               ctx.fillText(line, w - margin, yPos);
             });
 
-            resolve(canvas.toDataURL('image/jpeg', 0.78));
+            resolve(canvas.toDataURL('image/jpeg', 0.90));
           } catch (drawErr) {
             reject(drawErr);
           }
@@ -2159,7 +2179,7 @@
         labelRow.height = 24;
 
         const imgRow = sheet2.getRow(rowIndex + 1);
-        imgRow.height = 220;
+        imgRow.height = 190;
 
         [leftItem, rightItem].forEach((item, colIdx) => {
           if (!item) return;
@@ -2197,7 +2217,7 @@
           lr.alignment = { horizontal: 'center', vertical: 'middle' };
           lr.height = 24;
           const ir = sheet2.getRow(rowIndex + 1);
-          ir.height = 220;
+          ir.height = 190;
           [propPaperList[p], propPaperList[p + 1]].forEach((pUrl, cIdx) => {
             if (pUrl && pUrl.startsWith('data:image')) {
               try {
