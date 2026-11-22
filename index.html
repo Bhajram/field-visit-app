@@ -121,9 +121,12 @@
       <div class="absolute top-0 inset-x-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/75 to-transparent text-white">
         <div>
           <p id="camModalTitle" class="text-sm font-bold drop-shadow">GPS Camera</p>
-          <p class="text-[11px] text-emerald-300 drop-shadow">Full-Screen HD • 4:3 Output</p>
+          <p id="camOrientBadge" class="text-[11px] text-emerald-300 drop-shadow">Orientation: Portrait (Auto)</p>
         </div>
-        <button id="closeCamBtn" type="button" class="text-xs font-semibold bg-black/50 hover:bg-black/70 border border-white/20 px-3 py-1.5 rounded-lg cursor-pointer">Close</button>
+        <div class="flex items-center gap-2">
+          <button id="rotateCamBtn" type="button" class="text-xs font-semibold bg-black/50 hover:bg-black/70 border border-white/20 px-2.5 py-1.5 rounded-lg cursor-pointer">⟳ 0°</button>
+          <button id="closeCamBtn" type="button" class="text-xs font-semibold bg-black/50 hover:bg-black/70 border border-white/20 px-3 py-1.5 rounded-lg cursor-pointer">Close</button>
+        </div>
       </div>
 
       <!-- Bottom Overlay Controls (Zoom + Flip + Capture) -->
@@ -831,6 +834,35 @@
     let currentPhotos = {};
     let currentCompassHeading = 0;
     let hasCompassSensor = false;
+    let currentCaptureRotationDeg = 0;
+    let manualRotationOverride = null;
+
+    function updateCamOrientUI() {
+      const rot = manualRotationOverride !== null ? manualRotationOverride : currentCaptureRotationDeg;
+      const badge = document.getElementById('camOrientBadge');
+      const btn = document.getElementById('rotateCamBtn');
+      if (badge) {
+        const label = rot === 0 ? 'Portrait (Auto)' : rot === 180 ? 'Portrait 180°' : `Landscape 4:3 (${rot}°)`;
+        badge.textContent = `Mode: ${label}`;
+      }
+      if (btn) {
+        btn.textContent = `⟳ ${rot}°`;
+      }
+    }
+
+    if ('DeviceMotionEvent' in window) {
+      window.addEventListener('devicemotion', (e) => {
+        const g = e.accelerationIncludingGravity;
+        if (!g || typeof g.x !== 'number' || typeof g.y !== 'number') return;
+        const ax = g.x, ay = g.y;
+        if (Math.abs(ax) > Math.abs(ay) && Math.abs(ax) > 4.5) {
+          currentCaptureRotationDeg = ax > 0 ? -90 : 90;
+        } else if (Math.abs(ay) >= Math.abs(ax) && Math.abs(ay) > 4.5) {
+          currentCaptureRotationDeg = ay < 0 ? 180 : 0;
+        }
+        updateCamOrientUI();
+      }, true);
+    }
 
     function handleOrientation(e) {
       let heading = null;
@@ -842,6 +874,15 @@
       if (heading !== null) {
         currentCompassHeading = (heading + 360) % 360;
         hasCompassSensor = true;
+      }
+      if (typeof e.gamma === 'number' && typeof e.beta === 'number') {
+        if (Math.abs(e.beta) < 40 && Math.abs(e.gamma) > 45) {
+          currentCaptureRotationDeg = e.gamma < 0 ? -90 : 90;
+          updateCamOrientUI();
+        } else if (Math.abs(e.beta) > 45 && Math.abs(e.gamma) < 35) {
+          currentCaptureRotationDeg = e.beta < 0 ? 180 : 0;
+          updateCamOrientUI();
+        }
       }
     }
 
@@ -2158,6 +2199,8 @@
 
       try {
         lockPortraitOrientation();
+        manualRotationOverride = null;
+        updateCamOrientUI();
         prefetchedCamData = null;
         const seedCoords = latestLivePos
           ? { lat: latestLivePos.lat, lng: latestLivePos.lng, hasValid: true }
@@ -2192,6 +2235,13 @@
     }
 
     document.getElementById('closeCamBtn').addEventListener('click', stopLiveCamera);
+    document.getElementById('rotateCamBtn').addEventListener('click', () => {
+      const cur = manualRotationOverride !== null ? manualRotationOverride : currentCaptureRotationDeg;
+      const cycle = [0, -90, 90, 180];
+      const next = cycle[(cycle.indexOf(cur) + 1) % cycle.length];
+      manualRotationOverride = next;
+      updateCamOrientUI();
+    });
     document.getElementById('camZoomSlider').addEventListener('input', (e) => applyCameraZoom(e.target.value));
     document.getElementById('zoomInBtn').addEventListener('click', () => applyCameraZoom(currentCamZoom + 0.3));
     document.getElementById('zoomOutBtn').addEventListener('click', () => applyCameraZoom(currentCamZoom - 0.3));
@@ -2220,9 +2270,25 @@
       const cy = Math.round((vh - ch) / 2);
 
       const rawCanvas = document.createElement('canvas');
-      rawCanvas.width = cw;
-      rawCanvas.height = ch;
-      rawCanvas.getContext('2d').drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
+      const rot = manualRotationOverride !== null ? manualRotationOverride : currentCaptureRotationDeg;
+      const rctx = rawCanvas.getContext('2d');
+      if (rot === 90 || rot === -90) {
+        rawCanvas.width = ch;
+        rawCanvas.height = cw;
+        rctx.translate(rawCanvas.width / 2, rawCanvas.height / 2);
+        rctx.rotate((rot * Math.PI) / 180);
+        rctx.drawImage(video, cx, cy, cw, ch, -cw / 2, -ch / 2, cw, ch);
+      } else if (rot === 180) {
+        rawCanvas.width = cw;
+        rawCanvas.height = ch;
+        rctx.translate(rawCanvas.width / 2, rawCanvas.height / 2);
+        rctx.rotate(Math.PI);
+        rctx.drawImage(video, cx, cy, cw, ch, -cw / 2, -ch / 2, cw, ch);
+      } else {
+        rawCanvas.width = cw;
+        rawCanvas.height = ch;
+        rctx.drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
+      }
       const rawFrameUrl = rawCanvas.toDataURL('image/jpeg', 0.95);
       stopLiveCamera();
 
