@@ -1254,6 +1254,7 @@
     }
 
     let latestLivePos = null;
+    let isDetectingGps = false;
 
     function detectGPS(showFeedback = false) {
       const statusEl = document.getElementById('gpsStatus');
@@ -1263,16 +1264,20 @@
         statusEl.textContent = 'GPS not supported here. Type Lat/Lng manually or use Test Sample GPS.';
         return;
       }
+      if (isDetectingGps && !showFeedback) return;
+      isDetectingGps = true;
 
       statusEl.textContent = 'Detecting current location...';
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          isDetectingGps = false;
           latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
           applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
           if (showFeedback) showToast(`GPS detected (±${Math.round(pos.coords.accuracy)}m)!`);
         },
         (err) => {
           if (err && err.code === 1) {
+            isDetectingGps = false;
             statusEl.textContent = 'GPS permission blocked. Allow Location in browser/app settings.';
             if (gpsBadge) {
               gpsBadge.textContent = 'GPS: Blocked';
@@ -1281,18 +1286,21 @@
             if (showFeedback) showToast('GPS permission blocked');
             return;
           }
-          // Clean fallback to standard network/Wi-Fi + GPS accuracy
+          // Fallback: accept network/Wi-Fi fused location or last cached OS fix
           navigator.geolocation.getCurrentPosition(
             (pos) => {
+              isDetectingGps = false;
               latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
               applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
               if (showFeedback) showToast('GPS location updated!');
             },
-            () => {
-              statusEl.textContent = 'Location unavailable right now. Turn on Location/GPS or tap Detect GPS.';
-              if (showFeedback) showToast('Could not detect GPS');
+            (err2) => {
+              isDetectingGps = false;
+              const detail = err2 && err2.message ? ` (${err2.message})` : '';
+              statusEl.textContent = `Location unavailable${detail}. Turn on Google Location Accuracy or step near window & tap Detect GPS.`;
+              if (showFeedback) showToast('GPS unavailable indoors — check Location Accuracy');
             },
-            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: Infinity }
           );
         },
         { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
