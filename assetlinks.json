@@ -1,8 +1,0 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "app.netlify.rainbow_figolla_0d97b3.twa",
-        "sha256_cert_fingerprints": ["D0:59:7F:33:7F:51:8B:7F:CB:00:B1:2F:51:5C:BA:54:62:DF:08:15:9D:5B:ED:16:86:B7:3F:12:B7:6D:8B:33"]
-      }
-    }]
