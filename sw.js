@@ -1,4 +1,4 @@
-const CACHE_NAME = 'field-visit-offline-v8';
+const CACHE_NAME = 'field-visit-offline-v9';
 const LOCAL_URLS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 const CDN_URLS = [
   'https://cdn.tailwindcss.com/3.4.17',
