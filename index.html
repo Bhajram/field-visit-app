@@ -1237,6 +1237,11 @@
       lngEl.value = lngStr;
       const accNote = accuracyMeters ? ` (±${Math.round(accuracyMeters)}m)` : '';
       statusEl.textContent = `${sourceLabel}: ${latStr}, ${lngStr}${accNote}`;
+      const gpsBadge = document.getElementById('permGpsBadge');
+      if (gpsBadge && sourceLabel === 'Detected') {
+        gpsBadge.textContent = 'GPS: Allowed';
+        gpsBadge.className = 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
+      }
       updateMapLink();
       const addrEl = document.getElementById('address');
       if (addrEl && !addrEl.value.trim()) {
@@ -1248,78 +1253,49 @@
       }
     }
 
-    let activeGpsWatchId = null;
     let latestLivePos = null;
 
     function detectGPS(showFeedback = false) {
       const statusEl = document.getElementById('gpsStatus');
+      const gpsBadge = document.getElementById('permGpsBadge');
 
       if (!navigator.geolocation) {
         statusEl.textContent = 'GPS not supported here. Type Lat/Lng manually or use Test Sample GPS.';
         return;
       }
 
-      if (activeGpsWatchId !== null) {
-        navigator.geolocation.clearWatch(activeGpsWatchId);
-        activeGpsWatchId = null;
-      }
-
-      let bestAcc = Infinity;
-      statusEl.textContent = 'Detecting location...';
-
-      // Fast initial fix (works indoors too)
+      statusEl.textContent = 'Detecting current location...';
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-          if (pos.coords.accuracy < bestAcc) {
-            bestAcc = pos.coords.accuracy;
-            applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
-          }
-          if (showFeedback) showToast('GPS location updated!');
-        },
-        () => {},
-        { enableHighAccuracy: false, timeout: 6000, maximumAge: 30000 }
-      );
-
-      // Continuous 10s high-accuracy satellite refinement
-      const stopTimer = setTimeout(() => {
-        if (activeGpsWatchId !== null) {
-          navigator.geolocation.clearWatch(activeGpsWatchId);
-          activeGpsWatchId = null;
-        }
-      }, 10000);
-
-      activeGpsWatchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-          if (pos.coords.accuracy <= bestAcc) {
-            bestAcc = pos.coords.accuracy;
-            applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
-          }
-          if (pos.coords.accuracy <= 6) {
-            clearTimeout(stopTimer);
-            if (activeGpsWatchId !== null) {
-              navigator.geolocation.clearWatch(activeGpsWatchId);
-              activeGpsWatchId = null;
-            }
-            if (showFeedback) showToast(`High-accuracy GPS locked (±${Math.round(pos.coords.accuracy)}m)!`);
-          }
+          applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
+          if (showFeedback) showToast(`GPS detected (±${Math.round(pos.coords.accuracy)}m)!`);
         },
         (err) => {
-          clearTimeout(stopTimer);
-          if (activeGpsWatchId !== null) {
-            navigator.geolocation.clearWatch(activeGpsWatchId);
-            activeGpsWatchId = null;
+          if (err && err.code === 1) {
+            statusEl.textContent = 'GPS permission blocked. Allow Location in browser/app settings.';
+            if (gpsBadge) {
+              gpsBadge.textContent = 'GPS: Blocked';
+              gpsBadge.className = 'px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium';
+            }
+            if (showFeedback) showToast('GPS permission blocked');
+            return;
           }
-          if (err.code === 1) {
-            statusEl.textContent = 'GPS blocked in preview. Open in mobile Chrome/APK or tap Test Sample GPS.';
-            if (showFeedback) showToast('GPS blocked in preview');
-          } else if (bestAcc === Infinity) {
-            statusEl.textContent = 'Weak indoor GPS signal. Step outside or tap Detect GPS again.';
-            if (showFeedback) showToast('Weak GPS signal — retrying');
-          }
+          // Clean fallback to standard network/Wi-Fi + GPS accuracy
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+              applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
+              if (showFeedback) showToast('GPS location updated!');
+            },
+            () => {
+              statusEl.textContent = 'Location unavailable right now. Turn on Location/GPS or tap Detect GPS.';
+              if (showFeedback) showToast('Could not detect GPS');
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+          );
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
       );
     }
 
@@ -1338,26 +1314,7 @@
         } catch (e) {}
       }
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (gpsBadge) {
-              gpsBadge.textContent = 'GPS: Allowed';
-              gpsBadge.className = 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
-            }
-            applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
-          },
-          (err) => {
-            if (!gpsBadge) return;
-            if (err && err.code === 1) {
-              gpsBadge.textContent = 'GPS: Blocked';
-              gpsBadge.className = 'px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium';
-            } else {
-              gpsBadge.textContent = 'GPS: Allowed (Weak Signal)';
-              gpsBadge.className = 'px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium';
-            }
-          },
-          { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
-        );
+        detectGPS(fromUserTap);
       }
 
       // 2. Trigger Camera Permission Popup
