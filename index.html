@@ -115,7 +115,7 @@
 
     <!-- Full-Screen In-App Live GPS Camera Modal with Zoom -->
     <div id="cameraModal" class="hidden fixed inset-0 z-50 bg-black overflow-hidden">
-      <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-cover transition-transform duration-150 origin-center"></video>
+      <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-contain transition-transform duration-150 origin-center"></video>
 
       <!-- Top Overlay Bar -->
       <div class="absolute top-0 inset-x-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/75 to-transparent text-white">
@@ -1201,6 +1201,9 @@
       }
     }
 
+    let activeGpsWatchId = null;
+    let latestLivePos = null;
+
     function detectGPS(showFeedback = false) {
       const statusEl = document.getElementById('gpsStatus');
 
@@ -1209,32 +1212,52 @@
         return;
       }
 
-      statusEl.textContent = 'Detecting current location...';
-      navigator.geolocation.getCurrentPosition(
+      if (activeGpsWatchId !== null) {
+        navigator.geolocation.clearWatch(activeGpsWatchId);
+        activeGpsWatchId = null;
+      }
+
+      let bestAcc = Infinity;
+      statusEl.textContent = 'Refining high-accuracy GPS...';
+
+      const stopTimer = setTimeout(() => {
+        if (activeGpsWatchId !== null) {
+          navigator.geolocation.clearWatch(activeGpsWatchId);
+          activeGpsWatchId = null;
+        }
+      }, 10000);
+
+      activeGpsWatchId = navigator.geolocation.watchPosition(
         (pos) => {
-          applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
-          if (showFeedback) showToast('GPS location updated!');
+          latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+          if (pos.coords.accuracy <= bestAcc) {
+            bestAcc = pos.coords.accuracy;
+            applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
+          }
+          if (pos.coords.accuracy <= 6) {
+            clearTimeout(stopTimer);
+            if (activeGpsWatchId !== null) {
+              navigator.geolocation.clearWatch(activeGpsWatchId);
+              activeGpsWatchId = null;
+            }
+            if (showFeedback) showToast(`High-accuracy GPS locked (±${Math.round(pos.coords.accuracy)}m)!`);
+          }
         },
         (err) => {
+          clearTimeout(stopTimer);
+          if (activeGpsWatchId !== null) {
+            navigator.geolocation.clearWatch(activeGpsWatchId);
+            activeGpsWatchId = null;
+          }
           if (err.code === 1) {
-            statusEl.textContent = 'Preview sandbox blocks live GPS. Open in mobile Chrome/HTTPS for real GPS, or tap Test Sample GPS / type manually.';
-            if (showFeedback) showToast('GPS blocked in preview — works in real browser');
+            statusEl.textContent = 'GPS blocked in preview. Open in mobile Chrome/APK or tap Test Sample GPS.';
+            if (showFeedback) showToast('GPS blocked in preview');
             return;
           }
-          // Retry once with standard accuracy for desktops / indoor signal
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
-              if (showFeedback) showToast('GPS location updated!');
-            },
-            () => {
-              statusEl.textContent = 'Location unavailable right now. Type Lat/Lng manually or tap Test Sample GPS.';
-              if (showFeedback) showToast('Could not detect GPS');
-            },
-            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-          );
+          statusEl.textContent = 'Location unavailable right now. Type Lat/Lng manually or tap Test Sample GPS.';
+          if (showFeedback) showToast('Could not detect GPS');
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
 
@@ -1923,32 +1946,14 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
-            if (applyGpsStamp) {
-              // Force exact 4:3 (1000 x 750) for all GPS property photos
-              w = 1600;
-              h = 1200;
-              canvas.width = w;
-              canvas.height = h;
-              const targetRatio = w / h;
-              const srcRatio = img.width / img.height;
-              let sx = 0, sy = 0, sw = img.width, sh = img.height;
-              if (srcRatio > targetRatio) {
-                sw = Math.round(img.height * targetRatio);
-                sx = Math.round((img.width - sw) / 2);
-              } else if (srcRatio < targetRatio) {
-                sh = Math.round(img.width / targetRatio);
-                sy = Math.round((img.height - sh) / 2);
-              }
-              ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-            } else {
-              const maxW = 1600;
-              const scale = img.width > maxW ? maxW / img.width : 1;
-              w = Math.round(img.width * scale);
-              h = Math.round(img.height * scale);
-              canvas.width = w;
-              canvas.height = h;
-              ctx.drawImage(img, 0, 0, w, h);
-            }
+            const maxDim = 1600;
+            const longest = Math.max(img.width, img.height);
+            const scale = longest > maxDim ? maxDim / longest : 1;
+            w = Math.round(img.width * scale);
+            h = Math.round(img.height * scale);
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(img, 0, 0, w, h);
 
             if (!applyGpsStamp) {
               resolve(canvas.toDataURL('image/jpeg', 0.90));
@@ -2132,7 +2137,7 @@
         activeCamStream.getTracks().forEach((t) => t.stop());
       }
       activeCamStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode }, width: { ideal: 1600 }, height: { ideal: 1200 } },
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 1600 }, height: { ideal: 1200 }, aspectRatio: { ideal: 4 / 3 } },
         audio: false
       });
       const video = document.getElementById('cameraVideo');
@@ -2154,6 +2159,21 @@
       try {
         lockPortraitOrientation();
         prefetchedCamData = null;
+        const seedCoords = latestLivePos
+          ? { lat: latestLivePos.lat, lng: latestLivePos.lng, hasValid: true }
+          : {
+              lat: parseFloat(document.getElementById('latitude').value) || 0,
+              lng: parseFloat(document.getElementById('longitude').value) || 0,
+              hasValid: !isNaN(parseFloat(document.getElementById('latitude').value))
+            };
+        if (seedCoords.hasValid) {
+          Promise.all([
+            loadSatelliteMiniCanvas(seedCoords.lat, seedCoords.lng, true),
+            reverseGeocode(seedCoords.lat, seedCoords.lng)
+          ]).then(([mini, addr]) => {
+            if (!prefetchedCamData) prefetchedCamData = { coords: seedCoords, mini, addr };
+          }).catch(() => {});
+        }
         getLiveCoordsForPhoto().then(async (coords) => {
           const [mini, addr] = await Promise.all([
             loadSatelliteMiniCanvas(coords.lat, coords.lng, coords.hasValid),
