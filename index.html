@@ -133,7 +133,7 @@
       <div class="absolute bottom-0 inset-x-0 px-4 pb-6 pt-8 bg-gradient-to-t from-black/85 via-black/50 to-transparent space-y-4">
         <div class="max-w-xs mx-auto flex items-center gap-3 text-white text-xs">
           <button id="zoomOutBtn" type="button" class="w-7 h-7 rounded-full bg-white/20 font-bold cursor-pointer">-</button>
-          <input id="camZoomSlider" type="range" min="0.4" max="4" step="0.1" value="1" class="flex-1 accent-emerald-400 cursor-pointer" />
+          <input id="camZoomSlider" type="range" min="1" max="4" step="0.1" value="1" class="flex-1 accent-emerald-400 cursor-pointer" />
           <button id="zoomInBtn" type="button" class="w-7 h-7 rounded-full bg-white/20 font-bold cursor-pointer">+</button>
           <span id="camZoomLabel" class="w-10 text-right font-bold text-emerald-300">1.0x</span>
         </div>
@@ -838,7 +838,13 @@
     let manualRotationOverride = null;
 
     function updateCamOrientUI() {
-      const rot = manualRotationOverride !== null ? manualRotationOverride : currentCaptureRotationDeg;
+      let rot = manualRotationOverride !== null ? manualRotationOverride : currentCaptureRotationDeg;
+      if (activeFacingMode === 'user' && manualRotationOverride === null) {
+        rot = 0;
+      }
+      if (cw > ch && (rot === 90 || rot === -90)) {
+        rot = 0;
+      }
       const badge = document.getElementById('camOrientBadge');
       const btn = document.getElementById('rotateCamBtn');
       if (badge) {
@@ -858,7 +864,7 @@
         if (Math.abs(ax) > Math.abs(ay) && Math.abs(ax) > 4.5) {
           currentCaptureRotationDeg = ax > 0 ? -90 : 90;
         } else if (Math.abs(ay) >= Math.abs(ax) && Math.abs(ay) > 4.5) {
-          currentCaptureRotationDeg = ay < 0 ? 180 : 0;
+          currentCaptureRotationDeg = 0;
         }
         updateCamOrientUI();
       }, true);
@@ -880,7 +886,7 @@
           currentCaptureRotationDeg = e.gamma < 0 ? -90 : 90;
           updateCamOrientUI();
         } else if (Math.abs(e.beta) > 45 && Math.abs(e.gamma) < 35) {
-          currentCaptureRotationDeg = e.beta < 0 ? 180 : 0;
+          currentCaptureRotationDeg = 0;
           updateCamOrientUI();
         }
       }
@@ -1259,8 +1265,23 @@
       }
 
       let bestAcc = Infinity;
-      statusEl.textContent = 'Refining high-accuracy GPS...';
+      statusEl.textContent = 'Detecting location...';
 
+      // Fast initial fix (works indoors too)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+          if (pos.coords.accuracy < bestAcc) {
+            bestAcc = pos.coords.accuracy;
+            applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
+          }
+          if (showFeedback) showToast('GPS location updated!');
+        },
+        () => {},
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 30000 }
+      );
+
+      // Continuous 10s high-accuracy satellite refinement
       const stopTimer = setTimeout(() => {
         if (activeGpsWatchId !== null) {
           navigator.geolocation.clearWatch(activeGpsWatchId);
@@ -1293,10 +1314,10 @@
           if (err.code === 1) {
             statusEl.textContent = 'GPS blocked in preview. Open in mobile Chrome/APK or tap Test Sample GPS.';
             if (showFeedback) showToast('GPS blocked in preview');
-            return;
+          } else if (bestAcc === Infinity) {
+            statusEl.textContent = 'Weak indoor GPS signal. Step outside or tap Detect GPS again.';
+            if (showFeedback) showToast('Weak GPS signal — retrying');
           }
-          statusEl.textContent = 'Location unavailable right now. Type Lat/Lng manually or tap Test Sample GPS.';
-          if (showFeedback) showToast('Could not detect GPS');
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -1306,7 +1327,16 @@
       const gpsBadge = document.getElementById('permGpsBadge');
       const camBadge = document.getElementById('permCamBadge');
 
-      // 1. Trigger Location (GPS) Permission Popup
+      // 1. Trigger Location (GPS) Permission Popup & Check True Permission State
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const pStatus = await navigator.permissions.query({ name: 'geolocation' });
+          if (pStatus.state === 'granted' && gpsBadge) {
+            gpsBadge.textContent = 'GPS: Allowed';
+            gpsBadge.className = 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
+          }
+        } catch (e) {}
+      }
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
@@ -1316,13 +1346,17 @@
             }
             applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
           },
-          () => {
-            if (gpsBadge) {
+          (err) => {
+            if (!gpsBadge) return;
+            if (err && err.code === 1) {
               gpsBadge.textContent = 'GPS: Blocked';
               gpsBadge.className = 'px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium';
+            } else {
+              gpsBadge.textContent = 'GPS: Allowed (Weak Signal)';
+              gpsBadge.className = 'px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium';
             }
           },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
         );
       }
 
@@ -2136,7 +2170,7 @@
     }
 
     function applyCameraZoom(val) {
-      currentCamZoom = Math.min(4, Math.max(0.4, Number(val) || 1));
+      currentCamZoom = Math.min(4, Math.max(1, Number(val) || 1));
       const slider = document.getElementById('camZoomSlider');
       const lbl = document.getElementById('camZoomLabel');
       const video = document.getElementById('cameraVideo');
