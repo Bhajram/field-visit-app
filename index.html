@@ -113,27 +113,35 @@
       </div>
     </div>
 
-    <!-- In-App Live GPS Camera Modal (Opens camera directly without File/Storage chooser) -->
-    <div id="cameraModal" class="hidden fixed inset-0 z-50 bg-black flex flex-col justify-between">
-      <div class="flex items-center justify-between px-4 py-3 bg-black/70 text-white">
+    <!-- Full-Screen In-App Live GPS Camera Modal with Zoom -->
+    <div id="cameraModal" class="hidden fixed inset-0 z-50 bg-black overflow-hidden">
+      <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-cover transition-transform duration-150 origin-center"></video>
+
+      <!-- Top Overlay Bar -->
+      <div class="absolute top-0 inset-x-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/75 to-transparent text-white">
         <div>
-          <p id="camModalTitle" class="text-sm font-bold">GPS Camera</p>
-          <p class="text-[11px] text-emerald-300">Live 4:3 HD Capture</p>
+          <p id="camModalTitle" class="text-sm font-bold drop-shadow">GPS Camera</p>
+          <p class="text-[11px] text-emerald-300 drop-shadow">Full-Screen HD • 4:3 Output</p>
         </div>
-        <button id="closeCamBtn" type="button" class="text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg cursor-pointer">Close</button>
+        <button id="closeCamBtn" type="button" class="text-xs font-semibold bg-black/50 hover:bg-black/70 border border-white/20 px-3 py-1.5 rounded-lg cursor-pointer">Close</button>
       </div>
-      <div class="flex-1 flex items-center justify-center overflow-hidden bg-black p-2">
-        <div class="relative w-full max-w-lg aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden border border-white/20">
-          <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+
+      <!-- Bottom Overlay Controls (Zoom + Flip + Capture) -->
+      <div class="absolute bottom-0 inset-x-0 px-4 pb-6 pt-8 bg-gradient-to-t from-black/85 via-black/50 to-transparent space-y-4">
+        <div class="max-w-xs mx-auto flex items-center gap-3 text-white text-xs">
+          <button id="zoomOutBtn" type="button" class="w-7 h-7 rounded-full bg-white/20 font-bold cursor-pointer">-</button>
+          <input id="camZoomSlider" type="range" min="1" max="4" step="0.1" value="1" class="flex-1 accent-emerald-400 cursor-pointer" />
+          <button id="zoomInBtn" type="button" class="w-7 h-7 rounded-full bg-white/20 font-bold cursor-pointer">+</button>
+          <span id="camZoomLabel" class="w-10 text-right font-bold text-emerald-300">1.0x</span>
         </div>
-      </div>
-      <div class="px-4 py-5 bg-black/80 flex items-center justify-center gap-4">
-        <button id="switchCamBtn" type="button" class="text-xs font-semibold bg-white/15 hover:bg-white/25 text-white px-4 py-3 rounded-xl cursor-pointer">
-          Flip Camera
-        </button>
-        <button id="snapCamBtn" type="button" class="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3.5 rounded-full text-sm shadow-lg cursor-pointer transition-transform">
-          Capture Photo
-        </button>
+        <div class="flex items-center justify-center gap-4">
+          <button id="switchCamBtn" type="button" class="text-xs font-semibold bg-white/20 hover:bg-white/30 text-white px-4 py-3 rounded-xl cursor-pointer">
+            Flip Camera
+          </button>
+          <button id="snapCamBtn" type="button" class="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3.5 rounded-full text-sm shadow-xl border-2 border-white/80 cursor-pointer transition-transform">
+            Capture Photo
+          </button>
+        </div>
       </div>
     </div>
 
@@ -261,8 +269,8 @@
             </select>
           </div>
           <div>
-            <label for="roadWidth" class="block text-xs font-semibold text-slate-700 mb-1">Road Width (ft / m) <span class="text-rose-500">*</span></label>
-            <input id="roadWidth" type="text" placeholder="e.g. 20 ft" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"  required / autocomplete="off">
+            <label for="roadWidth" class="block text-xs font-semibold text-slate-700 mb-1">Road Width (ft) <span class="text-rose-500">*</span></label>
+            <input id="roadWidth" type="number" inputmode="decimal" min="0" step="any" required autocomplete="off" placeholder="e.g. 20" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div class="sm:col-span-2">
             <label for="roadOwnership" class="block text-xs font-semibold text-slate-700 mb-1">Government Road or Private Road <span class="text-rose-500">*</span></label>
@@ -1808,11 +1816,11 @@
     }
 
     function drawCompass(ctx, cx, cy, r, headingDeg) {
+      // 1. Rotate ONLY the outer ring and N E S W labels
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate((-(headingDeg || 0) * Math.PI) / 180);
 
-      // Outer grey ring
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
@@ -1821,7 +1829,6 @@
       ctx.strokeStyle = 'rgba(85, 92, 102, 0.85)';
       ctx.stroke();
 
-      // N E S W letters on ring
       const lblSize = Math.max(8, Math.round(r * 0.28));
       ctx.font = `700 ${lblSize}px Inter, sans-serif`;
       ctx.fillStyle = '#ffffff';
@@ -1831,8 +1838,11 @@
       ctx.fillText('S', 0, r);
       ctx.fillText('E', r, 0);
       ctx.fillText('W', -r, 0);
+      ctx.restore();
 
-      // Cyan pointer needle pointing North
+      // 2. Keep Cyan Arrow ALWAYS pointing UP (0 deg)
+      ctx.save();
+      ctx.translate(cx, cy);
       ctx.beginPath();
       ctx.moveTo(0, -r * 0.62);
       ctx.lineTo(-r * 0.16, r * 0.48);
@@ -2065,6 +2075,36 @@
     let activeCamStream = null;
     let activeCamSlotId = null;
     let activeFacingMode = 'environment';
+    let currentCamZoom = 1.0;
+    let hardwareZoomSupported = false;
+
+    function applyCameraZoom(val) {
+      currentCamZoom = Math.min(4, Math.max(1, Number(val) || 1));
+      const slider = document.getElementById('camZoomSlider');
+      const lbl = document.getElementById('camZoomLabel');
+      const video = document.getElementById('cameraVideo');
+      if (slider) slider.value = String(currentCamZoom);
+      if (lbl) lbl.textContent = `${currentCamZoom.toFixed(1)}x`;
+
+      hardwareZoomSupported = false;
+      if (activeCamStream) {
+        const track = activeCamStream.getVideoTracks()[0];
+        if (track && typeof track.getCapabilities === 'function') {
+          const caps = track.getCapabilities();
+          if (caps && caps.zoom) {
+            const z = Math.min(caps.zoom.max, Math.max(caps.zoom.min, currentCamZoom));
+            track.applyConstraints({ advanced: [{ zoom: z }] }).then(() => {
+              hardwareZoomSupported = true;
+              if (video) video.style.transform = 'scale(1)';
+            }).catch(() => {
+              if (video) video.style.transform = `scale(${currentCamZoom})`;
+            });
+            return;
+          }
+        }
+      }
+      if (video) video.style.transform = `scale(${currentCamZoom})`;
+    }
 
     function stopLiveCamera() {
       if (activeCamStream) {
@@ -2086,6 +2126,7 @@
       });
       const video = document.getElementById('cameraVideo');
       video.srcObject = activeCamStream;
+      applyCameraZoom(1.0);
     }
 
     async function openLiveCamera(slotId) {
@@ -2110,6 +2151,9 @@
     }
 
     document.getElementById('closeCamBtn').addEventListener('click', stopLiveCamera);
+    document.getElementById('camZoomSlider').addEventListener('input', (e) => applyCameraZoom(e.target.value));
+    document.getElementById('zoomInBtn').addEventListener('click', () => applyCameraZoom(currentCamZoom + 0.3));
+    document.getElementById('zoomOutBtn').addEventListener('click', () => applyCameraZoom(currentCamZoom - 0.3));
 
     document.getElementById('switchCamBtn').addEventListener('click', async () => {
       activeFacingMode = activeFacingMode === 'environment' ? 'user' : 'environment';
@@ -2125,11 +2169,19 @@
       if (!video || !video.videoWidth || !activeCamSlotId) return;
       const slotId = activeCamSlotId;
 
-      // Grab raw frame immediately from live video
+      // Grab raw frame immediately from live video (applying digital zoom crop if needed)
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const zCrop = hardwareZoomSupported ? 1 : currentCamZoom;
+      const cw = Math.round(vw / zCrop);
+      const ch = Math.round(vh / zCrop);
+      const cx = Math.round((vw - cw) / 2);
+      const cy = Math.round((vh - ch) / 2);
+
       const rawCanvas = document.createElement('canvas');
-      rawCanvas.width = video.videoWidth;
-      rawCanvas.height = video.videoHeight;
-      rawCanvas.getContext('2d').drawImage(video, 0, 0);
+      rawCanvas.width = cw;
+      rawCanvas.height = ch;
+      rawCanvas.getContext('2d').drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
       const rawFrameUrl = rawCanvas.toDataURL('image/jpeg', 0.95);
       stopLiveCamera();
 
