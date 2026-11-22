@@ -1268,17 +1268,29 @@
       isDetectingGps = true;
 
       statusEl.textContent = 'Detecting current location...';
+
+      // Step 1: Fast network/Wi-Fi/cached fix FIRST (returns immediately indoors)
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          isDetectingGps = false;
-          latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-          applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
-          if (showFeedback) showToast(`GPS detected (±${Math.round(pos.coords.accuracy)}m)!`);
+        (fastPos) => {
+          latestLivePos = { lat: fastPos.coords.latitude, lng: fastPos.coords.longitude, acc: fastPos.coords.accuracy };
+          applyCoordinates(fastPos.coords.latitude, fastPos.coords.longitude, 'Detected', fastPos.coords.accuracy);
+          if (showFeedback) showToast(`GPS detected (±${Math.round(fastPos.coords.accuracy)}m)!`);
+
+          // Step 2: Quietly refine with high-accuracy satellite GPS
+          navigator.geolocation.getCurrentPosition(
+            (hiPos) => {
+              isDetectingGps = false;
+              latestLivePos = { lat: hiPos.coords.latitude, lng: hiPos.coords.longitude, acc: hiPos.coords.accuracy };
+              applyCoordinates(hiPos.coords.latitude, hiPos.coords.longitude, 'Detected', hiPos.coords.accuracy);
+            },
+            () => { isDetectingGps = false; },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
         },
         (err) => {
           if (err && err.code === 1) {
             isDetectingGps = false;
-            statusEl.textContent = 'GPS permission blocked. Allow Location in browser/app settings.';
+            statusEl.textContent = 'GPS permission blocked. Allow Location in Chrome & App settings.';
             if (gpsBadge) {
               gpsBadge.textContent = 'GPS: Blocked';
               gpsBadge.className = 'px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium';
@@ -1286,24 +1298,24 @@
             if (showFeedback) showToast('GPS permission blocked');
             return;
           }
-          // Fallback: accept network/Wi-Fi fused location or last cached OS fix
+          // Retry once with high accuracy
           navigator.geolocation.getCurrentPosition(
-            (pos) => {
+            (hiPos) => {
               isDetectingGps = false;
-              latestLivePos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-              applyCoordinates(pos.coords.latitude, pos.coords.longitude, 'Detected', pos.coords.accuracy);
-              if (showFeedback) showToast('GPS location updated!');
+              latestLivePos = { lat: hiPos.coords.latitude, lng: hiPos.coords.longitude, acc: hiPos.coords.accuracy };
+              applyCoordinates(hiPos.coords.latitude, hiPos.coords.longitude, 'Detected', hiPos.coords.accuracy);
+              if (showFeedback) showToast(`GPS detected (±${Math.round(hiPos.coords.accuracy)}m)!`);
             },
             (err2) => {
               isDetectingGps = false;
               const detail = err2 && err2.message ? ` (${err2.message})` : '';
-              statusEl.textContent = `Location unavailable${detail}. Turn on Google Location Accuracy or step near window & tap Detect GPS.`;
-              if (showFeedback) showToast('GPS unavailable indoors — check Location Accuracy');
+              statusEl.textContent = `Location unavailable${detail}. Open Google Maps once to wake GPS, or step near window & tap Detect GPS.`;
+              if (showFeedback) showToast('GPS timeout — check Google Maps / Location Accuracy');
             },
-            { enableHighAccuracy: false, timeout: 15000, maximumAge: Infinity }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
           );
         },
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }
       );
     }
 
