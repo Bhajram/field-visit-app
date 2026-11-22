@@ -113,6 +113,30 @@
       </div>
     </div>
 
+    <!-- In-App Live GPS Camera Modal (Opens camera directly without File/Storage chooser) -->
+    <div id="cameraModal" class="hidden fixed inset-0 z-50 bg-black flex flex-col justify-between">
+      <div class="flex items-center justify-between px-4 py-3 bg-black/70 text-white">
+        <div>
+          <p id="camModalTitle" class="text-sm font-bold">GPS Camera</p>
+          <p class="text-[11px] text-emerald-300">Live 4:3 HD Capture</p>
+        </div>
+        <button id="closeCamBtn" type="button" class="text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg cursor-pointer">Close</button>
+      </div>
+      <div class="flex-1 flex items-center justify-center overflow-hidden bg-black p-2">
+        <div class="relative w-full max-w-lg aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden border border-white/20">
+          <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+        </div>
+      </div>
+      <div class="px-4 py-5 bg-black/80 flex items-center justify-center gap-4">
+        <button id="switchCamBtn" type="button" class="text-xs font-semibold bg-white/15 hover:bg-white/25 text-white px-4 py-3 rounded-xl cursor-pointer">
+          Flip Camera
+        </button>
+        <button id="snapCamBtn" type="button" class="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3.5 rounded-full text-sm shadow-lg cursor-pointer transition-transform">
+          Capture Photo
+        </button>
+      </div>
+    </div>
+
     <!-- Form -->
     <form id="entryForm" autocomplete="off" class="space-y-4 mb-8">
 
@@ -1042,7 +1066,7 @@
         return;
       }
 
-      const missingPhoto = PHOTO_SLOTS.find((slot) => { if (!slot.required) return false; const v = currentPhotos[slot.id]; return Array.isArray(v) ? v.length === 0 : !v; });
+      const missingPhoto = PHOTO_SLOTS.find((slot) => { if (!slot.required) return false; if (!isElectricityAvailable() && (slot.id === 'photo_ebill' || slot.id === 'photo_meter')) return false; const v = currentPhotos[slot.id]; return Array.isArray(v) ? v.length === 0 : !v; });
       if (missingPhoto) {
         const sec7Body = document.getElementById('sec7');
         if (sec7Body && sec7Body.classList.contains('hidden')) {
@@ -1501,6 +1525,11 @@
     if (elecStatusEl) {
       elecStatusEl.addEventListener('change', () => {
         const isNA = elecStatusEl.value === 'Not Available' || elecStatusEl.value === 'Ekal Batti';
+        if (isNA) {
+          delete currentPhotos['photo_ebill'];
+          delete currentPhotos['photo_meter'];
+        }
+        renderPhotoSlots();
         elecFieldIds.forEach((fid) => {
           const el = document.getElementById(fid);
           if (!el) return;
@@ -1564,13 +1593,12 @@
           </div>
         `;
       } else {
-        const captureMode = slot.selfie ? 'user' : 'environment';
         buttonsHtml = `
           <div class="flex items-center gap-2">
-            <label class="flex-1 text-center text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-lg cursor-pointer transition-colors">
+            <button type="button" data-open-camera="${slot.id}" class="flex-1 text-center text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-lg cursor-pointer transition-colors">
               ${hasAny ? 'Retake GPS Photo' : 'Click GPS Photo'}
-              <input type="file" accept="image/*" capture="${captureMode}" data-photo-slot="${slot.id}" class="hidden" />
-            </label>
+            </button>
+            <input id="fallback-${slot.id}" type="file" accept="image/*" capture="${slot.selfie ? 'user' : 'environment'}" data-photo-slot="${slot.id}" class="hidden" />
             ${hasAny ? `<button type="button" data-remove-photo="${slot.id}" class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2.5 py-2 rounded-lg border border-rose-200 cursor-pointer">Remove</button>` : ''}
           </div>
         `;
@@ -1588,19 +1616,34 @@
       `;
     }
 
+    function isElectricityAvailable() {
+      const el = document.getElementById('electricityStatus');
+      if (!el) return true;
+      return el.value !== 'Not Available' && el.value !== 'Ekal Batti';
+    }
+
     function renderPhotoSlots() {
       const propGrid = document.getElementById('photoSlotsGrid');
       const docGrid = document.getElementById('docSlotsGrid');
       const badge = document.getElementById('photoCounterBadge');
+      const elecOk = isElectricityAvailable();
 
-      propGrid.innerHTML = PHOTO_SLOTS.filter((s) => s.group === 'property').map(renderSlotCard).join('');
-      docGrid.innerHTML = PHOTO_SLOTS.filter((s) => s.group === 'doc').map(renderSlotCard).join('');
+      const visiblePropSlots = PHOTO_SLOTS.filter((s) => {
+        if (s.group !== 'property') return false;
+        if (!elecOk && (s.id === 'photo_ebill' || s.id === 'photo_meter')) return false;
+        return true;
+      });
+      const visibleDocSlots = PHOTO_SLOTS.filter((s) => s.group === 'doc');
 
-      const count = PHOTO_SLOTS.filter((slot) => {
+      propGrid.innerHTML = visiblePropSlots.map(renderSlotCard).join('');
+      docGrid.innerHTML = visibleDocSlots.map(renderSlotCard).join('');
+
+      const totalVisible = visiblePropSlots.length + visibleDocSlots.length;
+      const count = [...visiblePropSlots, ...visibleDocSlots].filter((slot) => {
         const val = currentPhotos[slot.id];
         return Array.isArray(val) ? val.length > 0 : !!val;
       }).length;
-      badge.textContent = `${count} / ${PHOTO_SLOTS.length}`;
+      badge.textContent = `${count} / ${totalVisible}`;
     }
 
     function getLiveCoordsForPhoto() {
@@ -2019,7 +2062,106 @@
       }
     });
 
+    let activeCamStream = null;
+    let activeCamSlotId = null;
+    let activeFacingMode = 'environment';
+
+    function stopLiveCamera() {
+      if (activeCamStream) {
+        activeCamStream.getTracks().forEach((t) => t.stop());
+        activeCamStream = null;
+      }
+      const video = document.getElementById('cameraVideo');
+      if (video) video.srcObject = null;
+      document.getElementById('cameraModal').classList.add('hidden');
+    }
+
+    async function startCameraStream(facingMode) {
+      if (activeCamStream) {
+        activeCamStream.getTracks().forEach((t) => t.stop());
+      }
+      activeCamStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 1600 }, height: { ideal: 1200 } },
+        audio: false
+      });
+      const video = document.getElementById('cameraVideo');
+      video.srcObject = activeCamStream;
+    }
+
+    async function openLiveCamera(slotId) {
+      const slot = PHOTO_SLOTS.find((x) => x.id === slotId);
+      activeCamSlotId = slotId;
+      activeFacingMode = (slot && slot.selfie) ? 'user' : 'environment';
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const fb = document.getElementById(`fallback-${slotId}`);
+        if (fb) fb.click();
+        return;
+      }
+
+      try {
+        document.getElementById('camModalTitle').textContent = slot ? slot.label : 'GPS Camera';
+        await startCameraStream(activeFacingMode);
+        document.getElementById('cameraModal').classList.remove('hidden');
+      } catch (err) {
+        const fb = document.getElementById(`fallback-${slotId}`);
+        if (fb) fb.click();
+      }
+    }
+
+    document.getElementById('closeCamBtn').addEventListener('click', stopLiveCamera);
+
+    document.getElementById('switchCamBtn').addEventListener('click', async () => {
+      activeFacingMode = activeFacingMode === 'environment' ? 'user' : 'environment';
+      try {
+        await startCameraStream(activeFacingMode);
+      } catch (e) {
+        showToast('Cannot switch camera');
+      }
+    });
+
+    document.getElementById('snapCamBtn').addEventListener('click', async () => {
+      const video = document.getElementById('cameraVideo');
+      if (!video || !video.videoWidth || !activeCamSlotId) return;
+      const slotId = activeCamSlotId;
+
+      // Grab raw frame immediately from live video
+      const rawCanvas = document.createElement('canvas');
+      rawCanvas.width = video.videoWidth;
+      rawCanvas.height = video.videoHeight;
+      rawCanvas.getContext('2d').drawImage(video, 0, 0);
+      const rawFrameUrl = rawCanvas.toDataURL('image/jpeg', 0.95);
+      stopLiveCamera();
+
+      showToast('Adding GPS stamp...');
+      try {
+        const liveCoords = await getLiveCoordsForPhoto();
+        const [miniCanvas, detectedAddr] = await Promise.all([
+          loadSatelliteMiniCanvas(liveCoords.lat, liveCoords.lng, liveCoords.hasValid),
+          liveCoords.hasValid ? reverseGeocode(liveCoords.lat, liveCoords.lng) : Promise.resolve('')
+        ]);
+        const processedUrl = await processImageFile(rawFrameUrl, true, liveCoords, miniCanvas, detectedAddr);
+        currentPhotos[slotId] = processedUrl;
+        const stampTime = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        savePhotoToDevice(processedUrl, `${slotId}_${stampTime}.jpg`);
+        saveDraft();
+        renderPhotoSlots();
+        showToast(
+          liveCoords.hasValid
+            ? `GPS Photo saved (${liveCoords.lat.toFixed(6)}, ${liveCoords.lng.toFixed(6)})`
+            : 'GPS Photo saved!'
+        );
+      } catch (err) {
+        showToast('Stamp error: ' + (err && err.message ? err.message : 'Try again'));
+      }
+    });
+
     document.getElementById('sec7').addEventListener('click', (e) => {
+      const camBtn = e.target.closest('[data-open-camera]');
+      if (camBtn) {
+        openLiveCamera(camBtn.getAttribute('data-open-camera'));
+        return;
+      }
       const saveBtn = e.target.closest('[data-save-photo]');
       if (saveBtn) {
         const slotId = saveBtn.getAttribute('data-save-photo');
